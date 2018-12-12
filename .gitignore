@@ -1,0 +1,11 @@
+# airflow-related resources
+airflow_home/airflow.cfg 
+airflow_home/airflow.db
+airflow_home/airflow-*.pid
+airflow_home/unittests.cfg
+airflow_home/logs
+
+# other resources
+.idea
+*.pyc
+__pycache__
