@@ -1,1 +1,1 @@
-# vbb-data-pipeline
+This small project is about playing around with the airflow framework.
