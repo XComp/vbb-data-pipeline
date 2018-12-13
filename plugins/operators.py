@@ -1,7 +1,7 @@
 import logging
 import zipfile
-from os import listdir, remove
-from os.path import isfile, join
+from os import listdir, makedirs
+from os.path import isfile, join, exists
 import gzip
 
 from airflow.models import BaseOperator
@@ -15,9 +15,10 @@ class UnzipOperator(BaseOperator):
 
     @apply_defaults
     def __init__(self, source_archive, target_folder, *args, **kwargs):
-        self.source_archive = source_archive
-        self.target_folder = target_folder
         super(UnzipOperator, self).__init__(*args, **kwargs)
+
+        self.source_archive: str = source_archive
+        self.target_folder: str = target_folder
 
     def execute(self, context):
         with zipfile.ZipFile(self.source_archive, mode="r") as archive:
@@ -30,13 +31,14 @@ class UnzipOperator(BaseOperator):
 class GZipOperator(BaseOperator):
 
     @apply_defaults
-    def __init__(self, *args, **kwargs):
+    def __init__(self, target_folder, *args, **kwargs):
         super(GZipOperator, self).__init__(*args, **kwargs)
 
-    def execute(self, context):
-        import pdb
-        pdb.set_trace()
+        self.target_folder: str = target_folder
+        if not exists(self.target_folder):
+            makedirs(self.target_folder)
 
+    def execute(self, context):
         task_instance = context["task_instance"]
         folder: str = task_instance.xcom_pull("unzip_task")
         log.info("Folder retrieved from upstream task: {}".format(folder))
@@ -47,11 +49,9 @@ class GZipOperator(BaseOperator):
                 continue
 
             with open(file_path, "rb") as plain_file:
-                with gzip.open("{}.gz".format(file_path), "wb") as gzip_file:
+                with gzip.open("{}.gz".format(join(self.target_folder, f)), "wb") as gzip_file:
                     gzip_file.writelines(plain_file.readlines())
 
-            # remove file after GZipping its content into another file
-            remove(file_path)
             log.debug("{} was gzipped.".format(file_path))
 
 
