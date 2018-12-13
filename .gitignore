@@ -1,9 +1,9 @@
 # airflow-related resources
-airflow_home/airflow.cfg 
-airflow_home/airflow.db
-airflow_home/airflow-*.pid
-airflow_home/unittests.cfg
-airflow_home/logs
+airflow.cfg 
+airflow.db
+airflow-*.pid
+unittests.cfg
+logs
 
 # other resources
 .idea
