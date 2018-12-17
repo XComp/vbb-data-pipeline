@@ -18,6 +18,9 @@ ARG AIRFLOW_DEPS=""
 ARG PYTHON_DEPS=""
 ENV AIRFLOW_GPL_UNIDECODE yes
 
+# vbb pipeline
+ARG DATA_FOLDER=/data/vbb
+
 # Define en_US.
 ENV LANGUAGE en_US.UTF-8
 ENV LANG en_US.UTF-8
@@ -73,7 +76,9 @@ RUN set -ex \
 COPY script/entrypoint.sh /entrypoint.sh
 COPY config/airflow.cfg ${AIRFLOW_HOME}/airflow.cfg
 
-RUN chown -R airflow: ${AIRFLOW_HOME}
+RUN mkdir -p ${DATA_FOLDER} && \ 
+    chown -R airflow: ${AIRFLOW_HOME} && \
+    chown -R airflow: ${DATA_FOLDER}
 
 EXPOSE 8080 5555 8793
 

@@ -9,7 +9,7 @@ default_args = {
     "owner": "mapohl"
 }
 
-target_base_folder = "/tmp/vbb"
+target_base_folder = "/data/vbb"
 
 dag = DAG(dag_id='gzip_compression',
           description='Simple way of transforming the ZIP archive into a GZip folder structure.',

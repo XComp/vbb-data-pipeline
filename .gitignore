@@ -1,9 +1,10 @@
 # airflow-related resources
-airflow.cfg 
 airflow.db
 airflow-*.pid
-unittests.cfg
 logs
+
+# VBB pipeline
+vbb-data
 
 # other resources
 .idea
