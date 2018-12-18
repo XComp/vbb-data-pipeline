@@ -2,35 +2,32 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators import DownloadOperator, UnzipOperator, GZipOperator
 
-from os.path import join
-
 default_args = {
     "start_date": datetime(2018, 12, 12),
     "owner": "mapohl"
 }
 
-target_base_folder = "/data/vbb"
+base_folder = "/usr/local/data"
 
-dag = DAG(dag_id='gzip_compression',
-          description='Simple way of transforming the ZIP archive into a GZip folder structure.',
-          schedule_interval=None,
+dag = DAG(dag_id="vbb",
+          description="This DAG extracts the data out of the VBB opendata access point for GTFS data and processes it.",
+          schedule_interval="0 0 * * 0",
           start_date=datetime(2018, 11, 15),
           catchup=False,
           default_args=default_args)
 
 download_operator = DownloadOperator(task_id="download_task",
                                      dag=dag,
-                                     target_folder=join(target_base_folder, "download_task"),
-                                     uri="https://www.vbb.de/media/download/2029"
-)
+                                     base_folder=base_folder,
+                                     uri="https://www.vbb.de/media/download/2029")
 
 unzip_operator = UnzipOperator(task_id="unzip_task",
                                dag=dag,
-                               target_folder=join(target_base_folder, "unzip_task"))
+                               base_folder=base_folder)
 
 gzip_operator = GZipOperator(task_id="gzip_task",
                              dag=dag,
-                             target_folder=join(target_base_folder, "gzip_task"))
+                             base_folder=base_folder)
 
 download_operator >> unzip_operator >> gzip_operator
 

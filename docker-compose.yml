@@ -19,7 +19,7 @@ services:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins
             - ./plugins:/usr/local/airflow/plugins
-            - ./vbb-data:/data/vbb
+            - ./pipeline-data:/usr/local/data/
         ports:
             - "8080:8080"
         command: webserver
