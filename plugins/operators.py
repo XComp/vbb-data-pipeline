@@ -4,11 +4,9 @@ import re
 from os import listdir, makedirs
 from os.path import isfile, join, exists
 import gzip
-from urllib.parse import urlparse
 
-from airflow.models import BaseOperator
+from airflow.models import BaseOperator, SkipMixin
 from airflow.operators.http_operator import HttpHook
-from airflow.operators.sensors import HttpSensor
 from airflow.plugins_manager import AirflowPlugin
 from airflow.utils.decorators import apply_defaults
 
@@ -35,22 +33,20 @@ class PipelineOperator(BaseOperator):
         raise NotImplementedError()
 
 
-class CheckURISensor(HttpSensor):
+class CheckURIOperator(BaseOperator, SkipMixin):
 
     @apply_defaults
     def __init__(self, uri: str, base_folder: str, http_conn_id: str, *args, **kwargs):
-        super(HttpSensor, self).__init__(
-            endpoint=uri,
-            method="GET",
-            response_check=self._response_check,
-            http_conn_id=http_conn_id,
-            *args,
-            **kwargs)
+        super(CheckURIOperator, self).__init__(*args, **kwargs)
 
-        self.uri = urlparse(uri)
-        self.url_file: str = join(base_folder, kwargs["dag"].dag_id, "url.txt")
+        self.parent_uri = uri
+        self.http_conn_id = http_conn_id
+        self.uri_filepath = join(base_folder, kwargs["dag"].dag_id, "url.txt")
 
-    def _response_check(self, response):
+    def _get_download_uri(self):
+        http_hook = HttpHook("GET", http_conn_id=self.http_conn_id)
+        response = http_hook.run(self.parent_uri)
+
         match = re.search(
             r'<a href="(/media/download/[0-9]*)" title="GTFS-Paket [^\"]*" class="teaser-link  m-download">',
             response.content.decode("utf-8"))
@@ -58,42 +54,47 @@ class CheckURISensor(HttpSensor):
             log.error("The response could not be parsed.")
             return False
 
-        new_path = match.group(1)
-        old_path = self._read_from_url_file()
+        return match.group(1)
 
-        if new_path == old_path:
+    def _is_new_uri(self, new_uri: str):
+        old_uri = None
+        if exists(self.uri_filepath):
+            with open(self.uri_filepath, "r") as f:
+                lines = f.readlines()
+                assert len(lines) == 1
+
+                old_uri = lines[0]
+        else:
+            log.info("No previous URL discovered. Continue processing {}".format(new_uri))
+
+        if old_uri == new_uri:
             # the URL didn't change - nothing to do
-            log.info("No new URL discovered: {}".format(new_path))
+            log.info("No new URL discovered: {}".format(new_uri))
             return False
 
-        log.info("No previous URL discovered. Continue processing {}".format(new_path))
-
-        with open(self.url_file, "w") as f:
-            f.write(new_path)
+        with open(self.uri_filepath, "w") as f:
+            f.write(new_uri)
             f.flush()
 
         return True
 
-    def _read_from_url_file(self):
-        if not exists(self.url_file):
-            return None
+    def execute(self, context):
+        download_uri = self._get_download_uri()
 
-        with open(self.url_file, "r") as f:
-            lines = f.readlines()
-            assert len(lines) == 1
+        if self._is_new_uri(new_uri=download_uri):
+            log.info("New URI found: {}".format(download_uri))
+            return download_uri
 
-            return lines[0]
+        # no further processing is needed: skip all downstream tasks
+        log.info("No new URI detected: Skipping all downstream tasks.")
+
+        downstream_tasks = context['task'].get_flat_relatives(upstream=False)
+        self.log.debug("Downstream task_ids %s", downstream_tasks)
+
+        if downstream_tasks:
+            self.skip(context['dag_run'], context['ti'].execution_date, downstream_tasks)
 
         return None
-
-    def poke(self, context):
-        return_value = super(CheckURISensor, self).poke(context)
-
-        new_path = self._read_from_url_file()
-        if new_path:
-            context["task_instance"].xcom_push("url", new_path)
-
-        return return_value
 
 
 class DownloadOperator(PipelineOperator):
@@ -107,7 +108,7 @@ class DownloadOperator(PipelineOperator):
 
     def _execute_with_folder(self, task_folder: str, context):
         http_hook = HttpHook("GET", http_conn_id=self.http_conn_id)
-        response = http_hook.run(context["task_instance"].xcom_pull("check_url_task", key="url"))
+        response = http_hook.run(context["task_instance"].xcom_pull("check_url_task"))
 
         target_file = join(task_folder, "vbb-archive.zip")
         with open(target_file, "wb") as zip_archive:
@@ -162,4 +163,4 @@ class GZipOperator(PipelineOperator):
 
 class GZipPlugin(AirflowPlugin):
     name = "vbb_plugin"
-    operators = [CheckURISensor, DownloadOperator, UnzipOperator, GZipOperator]
+    operators = [CheckURIOperator, DownloadOperator, UnzipOperator, GZipOperator]
