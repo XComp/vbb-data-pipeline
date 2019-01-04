@@ -1,16 +1,13 @@
-import logging
 import zipfile
 import re
 from os import listdir, makedirs
 from os.path import isfile, join, exists
 import gzip
 
-from airflow.models import BaseOperator, SkipMixin
+from airflow.models import BaseOperator, SkipMixin, LoggingMixin
 from airflow.operators.http_operator import HttpHook
 from airflow.plugins_manager import AirflowPlugin
 from airflow.utils.decorators import apply_defaults
-
-log = logging.getLogger(__name__)
 
 
 class PipelineOperator(BaseOperator):
@@ -25,7 +22,7 @@ class PipelineOperator(BaseOperator):
         task_folder = join(self.base_folder, context["dag"].dag_id, context["ds"], context["task_instance"].task_id)
         if not exists(task_folder):
             makedirs(task_folder)
-            log.info("Created '{}'...".format(task_folder))
+            self.log.info("Created '{}'...".format(task_folder))
 
         return self._execute_with_folder(task_folder, context)
 
@@ -33,7 +30,7 @@ class PipelineOperator(BaseOperator):
         raise NotImplementedError()
 
 
-class CheckURIOperator(BaseOperator, SkipMixin):
+class CheckURIOperator(SkipMixin, BaseOperator):
 
     @apply_defaults
     def __init__(self, uri: str, base_folder: str, http_conn_id: str, *args, **kwargs):
@@ -48,10 +45,10 @@ class CheckURIOperator(BaseOperator, SkipMixin):
         response = http_hook.run(self.parent_uri)
 
         match = re.search(
-            r'<a href="(/media/download/[0-9]*)" title="GTFS-Paket [^\"]*" class="teaser-link  m-download">',
+            r'<a href="(/media/download/[0-9]*)" title="GTFS-Paket [^\"]*" class="teaser-link[ ]+m-download">',
             response.content.decode("utf-8"))
         if not match:
-            log.error("The response could not be parsed.")
+            self.log.error("The response could not be parsed.")
             return False
 
         return match.group(1)
@@ -65,11 +62,11 @@ class CheckURIOperator(BaseOperator, SkipMixin):
 
                 old_uri = lines[0]
         else:
-            log.info("No previous URL discovered. Continue processing {}".format(new_uri))
+            self.log.info("No previous URL discovered. Continue processing {}".format(new_uri))
 
         if old_uri == new_uri:
             # the URL didn't change - nothing to do
-            log.info("No new URL discovered: {}".format(new_uri))
+            self.log.info("No new URL discovered: {}".format(new_uri))
             return False
 
         with open(self.uri_filepath, "w") as f:
@@ -82,11 +79,11 @@ class CheckURIOperator(BaseOperator, SkipMixin):
         download_uri = self._get_download_uri()
 
         if self._is_new_uri(new_uri=download_uri):
-            log.info("New URI found: {}".format(download_uri))
+            self.log.info("New URI found: {}".format(download_uri))
             return download_uri
 
         # no further processing is needed: skip all downstream tasks
-        log.info("No new URI detected: Skipping all downstream tasks.")
+        self.log.info("No new URI detected: Skipping all downstream tasks.")
 
         downstream_tasks = context['task'].get_flat_relatives(upstream=False)
         self.log.debug("Downstream task_ids %s", downstream_tasks)
@@ -114,7 +111,7 @@ class DownloadOperator(PipelineOperator):
         with open(target_file, "wb") as zip_archive:
             zip_archive.write(response.content)
 
-        log.info("Download finished.")
+        self.log.info("Download finished.")
 
         return target_file
 
@@ -128,12 +125,12 @@ class UnzipOperator(PipelineOperator):
     def _execute_with_folder(self, task_folder: str, context):
         task_instance = context["task_instance"]
         source_archive: str = task_instance.xcom_pull("download_task")
-        log.info("Source archive retrieved from upstream task: {}".format(source_archive))
+        self.log.info("Source archive retrieved from upstream task: {}".format(source_archive))
 
         with zipfile.ZipFile(source_archive, mode="r") as archive:
             for member_name in archive.namelist():
                 archive.extract(member_name, path=task_folder)
-                log.info("'{}' was extracted.".format(member_name))
+                self.log.info("'{}' was extracted.".format(member_name))
 
         return task_folder
 
@@ -147,7 +144,7 @@ class GZipOperator(PipelineOperator):
     def _execute_with_folder(self, task_folder: str, context):
         task_instance = context["task_instance"]
         folder: str = task_instance.xcom_pull("unzip_task")
-        log.info("Folder retrieved from upstream task: {}".format(folder))
+        self.log.info("Folder retrieved from upstream task: {}".format(folder))
 
         for f in listdir(folder):
             file_path = join(folder, f)
@@ -158,7 +155,7 @@ class GZipOperator(PipelineOperator):
                 with gzip.open("{}.gz".format(join(task_folder, f)), "wb") as gzip_file:
                     gzip_file.writelines(plain_file.readlines())
 
-            log.debug("{} was gzipped.".format(file_path))
+            self.log.debug("{} was gzipped.".format(file_path))
 
 
 class GZipPlugin(AirflowPlugin):
