@@ -6,7 +6,7 @@ TRY_LOOP="20"
 : "${REDIS_PORT:="6379"}"
 : "${REDIS_PASSWORD:=""}"
 
-: "${POSTGRES_HOST:="postgres"}"
+: "${POSTGRES_HOST:="postgres_airflow"}"
 : "${POSTGRES_PORT:="5432"}"
 : "${POSTGRES_USER:="airflow"}"
 : "${POSTGRES_PASSWORD:="airflow"}"
@@ -51,7 +51,7 @@ wait_for_port() {
       echo >&2 "$(date) - $host:$port still not reachable, giving up"
       exit 1
     fi
-    echo "$(date) - waiting for $name... $j/$TRY_LOOP"
+    echo "$(date) - waiting for $name ($host:$port)... $j/$TRY_LOOP"
     sleep 5
   done
 }
