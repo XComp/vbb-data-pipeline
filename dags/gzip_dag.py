@@ -4,10 +4,10 @@ from airflow.operators import CheckURIOperator, DownloadOperator, UnzipOperator,
 
 default_args = {
     "start_date": datetime(2018, 12, 12),
-    "owner": "mapohl"
+    "owner": "mapohl",
+    "base_folder": "/usr/local/data"
 }
 
-base_folder = "/usr/local/data"
 http_conn_id = "vbb_default"
 
 with DAG(dag_id="vbb",
@@ -18,18 +18,14 @@ with DAG(dag_id="vbb",
          default_args=default_args) as dag:
 
     check_url_operator = CheckURIOperator(task_id="check_url_task",
-                                          base_folder=base_folder,
                                           http_conn_id=http_conn_id,
                                           uri="unsere-themen/vbbdigital/api-entwicklerinfos/datensaetze")
 
     download_operator = DownloadOperator(task_id="download_task",
-                                         base_folder=base_folder,
                                          http_conn_id=http_conn_id)
 
-    unzip_operator = UnzipOperator(task_id="unzip_task",
-                                   base_folder=base_folder)
+    unzip_operator = UnzipOperator(task_id="unzip_task")
 
-    gzip_operator = GZipOperator(task_id="gzip_task",
-                                 base_folder=base_folder)
+    gzip_operator = GZipOperator(task_id="gzip_task")
 
     check_url_operator >> download_operator >> unzip_operator >> gzip_operator

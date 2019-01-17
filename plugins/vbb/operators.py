@@ -96,10 +96,9 @@ class CheckURIOperator(SkipMixin, BaseOperator):
 class DownloadOperator(PipelineOperator):
 
     @apply_defaults
-    def __init__(self, base_folder: str, http_conn_id: str, *args, **kwargs):
-        super(DownloadOperator, self).__init__(base_folder=base_folder, *args, **kwargs)
+    def __init__(self, http_conn_id: str, *args, **kwargs):
+        super(DownloadOperator, self).__init__(*args, **kwargs)
 
-        self.base_folder: str = base_folder
         self.http_conn_id = http_conn_id
 
     def _execute_with_folder(self, task_folder: str, context):
@@ -118,8 +117,8 @@ class DownloadOperator(PipelineOperator):
 class UnzipOperator(PipelineOperator):
 
     @apply_defaults
-    def __init__(self, base_folder: str, *args, **kwargs):
-        super(UnzipOperator, self).__init__(base_folder=base_folder, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(UnzipOperator, self).__init__(*args, **kwargs)
 
     def _execute_with_folder(self, task_folder: str, context):
         task_instance = context["task_instance"]
@@ -137,8 +136,8 @@ class UnzipOperator(PipelineOperator):
 class GZipOperator(PipelineOperator):
 
     @apply_defaults
-    def __init__(self, base_folder: str, *args, **kwargs):
-        super(GZipOperator, self).__init__(base_folder=base_folder, *args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super(GZipOperator, self).__init__(*args, **kwargs)
 
     def _execute_with_folder(self, task_folder: str, context):
         task_instance = context["task_instance"]
