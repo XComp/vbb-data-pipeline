@@ -4,9 +4,8 @@ from os import listdir, makedirs
 from os.path import isfile, join, exists
 import gzip
 
-from airflow.models import BaseOperator, SkipMixin, LoggingMixin
+from airflow.models import BaseOperator, SkipMixin
 from airflow.operators.http_operator import HttpHook
-from airflow.plugins_manager import AirflowPlugin
 from airflow.utils.decorators import apply_defaults
 
 
