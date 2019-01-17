@@ -1,7 +1,7 @@
 from airflow.plugins_manager import AirflowPlugin
-from .operators import CheckURIOperator, DownloadOperator, UnzipOperator, GZipOperator
+from .operators import CheckURLOperator, DownloadOperator, UnzipOperator, GZipOperator
 
 
 class VBBPlugin(AirflowPlugin):
     name = "vbb_plugin"
-    operators = [CheckURIOperator, DownloadOperator, UnzipOperator, GZipOperator]
+    operators = [CheckURLOperator, DownloadOperator, UnzipOperator, GZipOperator]
