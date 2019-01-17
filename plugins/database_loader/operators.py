@@ -4,7 +4,6 @@ from os.path import join, exists
 from airflow.models import BaseOperator, SkipMixin
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.operators.postgres_operator import PostgresHook
-from airflow.plugins_manager import AirflowPlugin
 from airflow.utils.decorators import apply_defaults
 
 
@@ -95,8 +94,3 @@ class Copy2DatabaseOperator(PostgresMixin, SkipMixin, BaseOperator):
         hook.run(sql=sql_queries)
         for output in hook.conn.notices:
             self.log.info(output)
-
-
-class DatabasePlugin(AirflowPlugin):
-    name = "database_plugin"
-    operators = [CheckSchemaOperator, CreateSchemaOperator, Copy2DatabaseOperator]

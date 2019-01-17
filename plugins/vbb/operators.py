@@ -156,8 +156,3 @@ class GZipOperator(PipelineOperator):
                     gzip_file.writelines(plain_file.readlines())
 
             self.log.debug("{} was gzipped.".format(file_path))
-
-
-class GZipPlugin(AirflowPlugin):
-    name = "vbb_plugin"
-    operators = [CheckURIOperator, DownloadOperator, UnzipOperator, GZipOperator]
