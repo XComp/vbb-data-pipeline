@@ -19,7 +19,7 @@ class PipelineOperator(BaseOperator):
         self.base_folder: str = base_folder
 
     def execute(self, context):
-        task_folder = join(self.base_folder, context["dag"].dag_id, context["ds"], context["task_instance"].task_id)
+        task_folder = join(self.base_folder, self.dag_id, context["ds"], self.task_id)
         if not exists(task_folder):
             makedirs(task_folder)
             self.log.info("Created '{}'...".format(task_folder))
@@ -38,7 +38,7 @@ class CheckURIOperator(SkipMixin, BaseOperator):
 
         self.parent_uri = uri
         self.http_conn_id = http_conn_id
-        self.uri_filepath = join(base_folder, kwargs["dag"].dag_id, "url.txt")
+        self.uri_filepath = join(base_folder, self.dag_id, "url.txt")
 
     def _get_download_uri(self):
         http_hook = HttpHook("GET", http_conn_id=self.http_conn_id)
