@@ -49,7 +49,7 @@ class CreateSchemaOperator(PostgresMixin, BaseOperator):
 
     def execute(self, context):
         sql_queries = ""
-        with open("plugins/sql/schema.sql", "r") as schema_file:
+        with open("plugins/database_loader/sql/schema.sql", "r") as schema_file:
             for line in schema_file:
                 if not line.startswith("--"):
                     sql_queries += line
