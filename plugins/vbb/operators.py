@@ -1,11 +1,11 @@
 import zipfile
-import re
 from os import listdir, makedirs
 from os.path import isfile, join, exists
 import gzip
 import requests
 from urllib.parse import urlparse, ParseResult
 
+from typing import Callable
 from airflow.models import BaseOperator, SkipMixin, TaskInstance
 from airflow.utils.decorators import apply_defaults
 
@@ -33,44 +33,50 @@ class PipelineOperator(BaseOperator):
 class CheckURLOperator(SkipMixin, BaseOperator):
 
     @apply_defaults
-    def __init__(self, url: str, base_folder: str, *args, **kwargs):
+    def __init__(self, url: str, extract_download_url: Callable, base_folder: str, *args, **kwargs):
         super(CheckURLOperator, self).__init__(*args, **kwargs)
 
         self.url: ParseResult = urlparse(url)
-        self.url_filepath: str = join(base_folder, self.dag_id, "url.txt")
+        self.base_folder = base_folder
 
-    def _get_base_url(self):
-        return "{}://{}".format(self.url.scheme, self.url.netloc)
+        self.extract_download_url = extract_download_url
+
+    def _get_dag_folder(self) -> str:
+        return join(self.base_folder, self.dag_id)
+
+    def _get_url_filepath(self) -> str:
+        return join(self._get_dag_folder(), "url.txt")
 
     def _get_download_url(self):
         response = requests.get(self.url.geturl())
+        download_url = self.extract_download_url(self.url, response)
 
-        match = re.search(
-            r'<a href="(/media/download/[0-9]*)" title="GTFS-Paket [^\"]*" class="teaser-link[ ]+m-download">',
-            response.content.decode("utf-8"))
-        if not match:
-            self.log.error("The response could not be parsed.")
-            return False
+        if not download_url:
+            raise ValueError("No proper URL could have been extracted.")
 
-        return self._get_base_url() + match.group(1)
+        return download_url
 
     def _is_new_url(self, new_url: str):
         old_url = None
-        if exists(self.url_filepath):
-            with open(self.url_filepath, "r") as f:
+        if exists(self._get_url_filepath()):
+            with open(self._get_url_filepath(), "r") as f:
                 lines = f.readlines()
                 assert len(lines) == 1
 
                 old_url = lines[0]
         else:
             self.log.info("No previous URL discovered. Continue processing {}".format(new_url))
+            # we have to make sure that the folder was created
+            if not exists(self._get_dag_folder()):
+                makedirs(self._get_dag_folder())
+                self.log.info("No DAG folder didn't exist, yet. The folder was created now.")
 
         if old_url == new_url:
             # the URL didn't change - nothing to do
             self.log.info("No new URL discovered: {}".format(new_url))
             return False
 
-        with open(self.url_filepath, "w") as f:
+        with open(self._get_url_filepath(), "w") as f:
             f.write(new_url)
             f.flush()
 
