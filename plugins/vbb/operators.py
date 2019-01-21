@@ -126,7 +126,7 @@ class DownloadOperator(PipelineOperator):
     def _execute_with_folder(self, context):
         response = requests.get(context["task_instance"].xcom_pull("check_url_task"))
 
-        target_file = join(self.get_task_folder(), "vbb-archive.zip")
+        target_file = join(self.get_task_folder(), "archive.zip")
         with open(target_file, "wb") as zip_archive:
             zip_archive.write(response.content)
 
