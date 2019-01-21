@@ -5,13 +5,14 @@ from requests import Response
 from typing import Callable
 
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.subdag_operator import SubDagOperator
 from airflow.operators import CheckURLOperator, DownloadOperator, UnzipOperator, GZipOperator
 
 default_args = {
-    "start_date": datetime(2018, 12, 12),
+    "start_date": datetime(2019, 1, 18),
+    "schedule_interval": None,
+    "catchup": False,
     "owner": "mapohl",
     "base_folder": "/usr/local/data"
 }
@@ -45,16 +46,11 @@ def create_provider_dag(
         provider_description: str,
         provider_url: str,
         extract_func: Callable,
-        def_args: dict,
-        start_dt: datetime,
-        schedule_iv: str):
+        def_args: dict):
     sub_dag_id = "{}.{}".format(parent_dag_id, provider_id)
 
     sub_dag = DAG(dag_id=sub_dag_id,
                   description="This DAG extracts the GTFS archive provided by {}.".format(provider_description),
-                  schedule_interval=schedule_iv,
-                  start_date=start_dt,
-                  catchup=False,
                   default_args=def_args)
 
     check_url_operator = CheckURLOperator(dag=sub_dag,
@@ -86,12 +82,8 @@ dag_metadata = [
 ]
 
 main_dag_id = "gtfs_pipeline"
-schedule_interval: str = "0 0 * * 0"
-start_date: datetime = datetime(2018, 11, 15)
 with DAG(dag_id=main_dag_id,
          description="Extracts the GTFS data from various sources.",
-         schedule_interval=schedule_interval,
-         start_date=start_date,
          default_args=default_args) as dag:
     start_task = DummyOperator(task_id="start")
 
@@ -103,9 +95,7 @@ with DAG(dag_id=main_dag_id,
                 provider_description=prov_desc,
                 provider_url=prov_url,
                 extract_func=prov_extract_func,
-                def_args=default_args,
-                start_dt=start_date,
-                schedule_iv=schedule_interval)
+                def_args=default_args)
         sub_dag_task = SubDagOperator(
             task_id=prov_id,
             dag=dag,

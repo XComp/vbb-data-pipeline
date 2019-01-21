@@ -13,39 +13,59 @@ from airflow.utils.decorators import apply_defaults
 class PipelineOperator(BaseOperator):
 
     @apply_defaults
-    def __init__(self, base_folder: str, *args, **kwargs):
+    def __init__(self, base_folder: str, create_task_folder: bool = True, *args, **kwargs):
         super(PipelineOperator, self).__init__(*args, **kwargs)
 
         self.base_folder: str = base_folder
+        self.dag_folder = None
+        self.dagrun_folder = None
+        self.task_folder = None if create_task_folder else ""
 
     def execute(self, context):
-        task_folder = join(self.base_folder, self.dag_id, context["ds"], self.task_id)
-        if not exists(task_folder):
-            makedirs(task_folder)
-            self.log.info("Created '{}'...".format(task_folder))
+        self.dag_folder = join(self.base_folder, self.dag_id)
+        self.dagrun_folder = join(self.dag_folder, context["ds"])
+        self.task_folder = join(self.dagrun_folder, self.task_id) if self.task_folder is None else self.task_folder
 
-        return self._execute_with_folder(task_folder, context)
+        for f in [self.dag_folder, self.dagrun_folder, self.task_folder]:
+            if f and not exists(f):
+                makedirs(f)
+                self.log.info("Created '{}'...".format(f))
 
-    def _execute_with_folder(self, task_folder: str, context):
+        return self._execute_with_folder(context)
+
+    def get_dag_folder(self):
+        if not self.dag_folder:
+            raise ValueError("The DAG folder was not initialized.")
+
+        return self.dag_folder
+
+    def get_dagrun_folder(self):
+        if not self.dagrun_folder:
+            raise ValueError("The DagRun folder was not initialized.")
+
+        return self.dagrun_folder
+
+    def get_task_folder(self):
+        if not self.task_folder:
+            raise ValueError("The Task folder was not initialized.")
+
+        return self.task_folder
+
+    def _execute_with_folder(self, context):
         raise NotImplementedError()
 
 
-class CheckURLOperator(SkipMixin, BaseOperator):
+class CheckURLOperator(SkipMixin, PipelineOperator):
 
     @apply_defaults
     def __init__(self, url: str, extract_download_url: Callable, base_folder: str, *args, **kwargs):
-        super(CheckURLOperator, self).__init__(*args, **kwargs)
+        super(CheckURLOperator, self).__init__(base_folder=base_folder, create_task_folder=False, *args, **kwargs)
 
         self.url: ParseResult = urlparse(url)
-        self.base_folder = base_folder
-
         self.extract_download_url = extract_download_url
 
-    def _get_dag_folder(self) -> str:
-        return join(self.base_folder, self.dag_id)
-
     def _get_url_filepath(self) -> str:
-        return join(self._get_dag_folder(), "url.txt")
+        return join(self.get_dag_folder(), "url.txt")
 
     def _get_download_url(self):
         response = requests.get(self.url.geturl())
@@ -66,10 +86,6 @@ class CheckURLOperator(SkipMixin, BaseOperator):
                 old_url = lines[0]
         else:
             self.log.info("No previous URL discovered. Continue processing {}".format(new_url))
-            # we have to make sure that the folder was created
-            if not exists(self._get_dag_folder()):
-                makedirs(self._get_dag_folder())
-                self.log.info("No DAG folder didn't exist, yet. The folder was created now.")
 
         if old_url == new_url:
             # the URL didn't change - nothing to do
@@ -82,7 +98,7 @@ class CheckURLOperator(SkipMixin, BaseOperator):
 
         return True
 
-    def execute(self, context):
+    def _execute_with_folder(self, context):
         download_url = self._get_download_url()
 
         if self._is_new_url(new_url=download_url):
@@ -107,10 +123,10 @@ class DownloadOperator(PipelineOperator):
     def __init__(self, *args, **kwargs):
         super(DownloadOperator, self).__init__(*args, **kwargs)
 
-    def _execute_with_folder(self, task_folder: str, context):
+    def _execute_with_folder(self, context):
         response = requests.get(context["task_instance"].xcom_pull("check_url_task"))
 
-        target_file = join(task_folder, "vbb-archive.zip")
+        target_file = join(self.get_task_folder(), "vbb-archive.zip")
         with open(target_file, "wb") as zip_archive:
             zip_archive.write(response.content)
 
@@ -125,17 +141,17 @@ class UnzipOperator(PipelineOperator):
     def __init__(self, *args, **kwargs):
         super(UnzipOperator, self).__init__(*args, **kwargs)
 
-    def _execute_with_folder(self, task_folder: str, context):
+    def _execute_with_folder(self, context):
         task_instance: TaskInstance = context["task_instance"]
         source_archive: str = task_instance.xcom_pull("download_task")
         self.log.info("Source archive retrieved from upstream task: {}".format(source_archive))
 
         with zipfile.ZipFile(source_archive, mode="r") as archive:
             for member_name in archive.namelist():
-                archive.extract(member_name, path=task_folder)
+                archive.extract(member_name, path=self.get_task_folder())
                 self.log.info("'{}' was extracted.".format(member_name))
 
-        return task_folder
+        return self.get_task_folder()
 
 
 class GZipOperator(PipelineOperator):
@@ -144,7 +160,7 @@ class GZipOperator(PipelineOperator):
     def __init__(self, *args, **kwargs):
         super(GZipOperator, self).__init__(*args, **kwargs)
 
-    def _execute_with_folder(self, task_folder: str, context):
+    def _execute_with_folder(self, context):
         task_instance: TaskInstance = context["task_instance"]
         folder: str = task_instance.xcom_pull("unzip_task")
         self.log.info("Folder retrieved from upstream task: {}".format(folder))
@@ -155,7 +171,7 @@ class GZipOperator(PipelineOperator):
                 continue
 
             with open(file_path, "rb") as plain_file:
-                with gzip.open("{}.gz".format(join(task_folder, f)), "wb") as gzip_file:
+                with gzip.open("{}.gz".format(join(self.get_task_folder(), f)), "wb") as gzip_file:
                     gzip_file.writelines(plain_file.readlines())
 
             self.log.debug("{} was gzipped.".format(file_path))
