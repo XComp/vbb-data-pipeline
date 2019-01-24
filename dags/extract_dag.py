@@ -33,7 +33,7 @@ def extract_vbb_download_url(**kwargs) -> str:
 
 def extract_vrs_download_url(**kwargs) -> str:
     response = kwargs["response"]
-    
+
     match = re.search(
         r'<a href="(http://[^"]*.zip)" target="_blank" class="external-link-new-window">GTFS-Daten ohne SPNV-Daten</a>',
         response.content.decode("utf-8"))
@@ -104,14 +104,13 @@ with DAG(dag_id=main_dag_id,
 
     extract_tasks = []
     for prov_id, prov_desc, prov_url, prov_extract_func, prov_check_url, in dag_metadata:
-        subdag = create_provider_dag(
-                parent_dag_id=main_dag_id,
-                provider_id=prov_id,
-                provider_description=prov_desc,
-                provider_url=prov_url,
-                extract_func=prov_extract_func,
-                check_url=prov_check_url,
-                def_args=default_args)
+        subdag = create_provider_dag(parent_dag_id=main_dag_id,
+                                     provider_id=prov_id,
+                                     provider_description=prov_desc,
+                                     provider_url=prov_url,
+                                     extract_func=prov_extract_func,
+                                     check_url=prov_check_url,
+                                     def_args=default_args)
         sub_dag_task = SubDagOperator(
             task_id=prov_id,
             dag=dag,
