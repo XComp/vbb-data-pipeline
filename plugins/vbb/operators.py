@@ -70,7 +70,7 @@ class ExtractURLOperator(SkipMixin, PipelineOperator):
 
     def _get_download_url(self):
         response = requests.get(self.url.geturl())
-        download_url = self.extract_download_url(self.url, response)
+        download_url = self.extract_download_url(url=self.url, response=response)
 
         if not download_url:
             raise ValueError("No proper URL could have been extracted.")

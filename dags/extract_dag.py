@@ -1,7 +1,5 @@
 from datetime import datetime
 import re
-from urllib.parse import ParseResult
-from requests import Response
 from typing import Callable
 
 from airflow import DAG
@@ -18,7 +16,10 @@ default_args = {
 }
 
 
-def extract_vbb_download_url(url: ParseResult, response: Response) -> str:
+def extract_vbb_download_url(**kwargs) -> str:
+    url = kwargs["url"]
+    response = kwargs["response"]
+
     match = re.search(
         r'<a href="(/media/download/[0-9]*)" title="GTFS-Paket [^\"]*" class="teaser-link[ ]+m-download">',
         response.content.decode("utf-8"))
@@ -29,7 +30,9 @@ def extract_vbb_download_url(url: ParseResult, response: Response) -> str:
     return "{}://{}{}".format(url.scheme, url.netloc, match.group(1))
 
 
-def extract_vrs_download_url(url: ParseResult, response: Response) -> str:
+def extract_vrs_download_url(**kwargs) -> str:
+    response = kwargs["response"]
+    
     match = re.search(
         r'<a href="(http://[^"]*.zip)" target="_blank" class="external-link-new-window">GTFS-Daten ohne SPNV-Daten</a>',
         response.content.decode("utf-8"))
@@ -95,14 +98,14 @@ with DAG(dag_id=main_dag_id,
     start_task = DummyOperator(task_id="start")
 
     extract_tasks = []
-    for prov_id, prov_desc, prov_url, prov_extract_func, check_url, in dag_metadata:
+    for prov_id, prov_desc, prov_url, prov_extract_func, prov_check_url, in dag_metadata:
         subdag = create_provider_dag(
                 parent_dag_id=main_dag_id,
                 provider_id=prov_id,
                 provider_description=prov_desc,
                 provider_url=prov_url,
                 extract_func=prov_extract_func,
-                check_url=check_url,
+                check_url=prov_check_url,
                 def_args=default_args)
         sub_dag_task = SubDagOperator(
             task_id=prov_id,
