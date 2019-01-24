@@ -13,23 +13,22 @@ from airflow.utils.decorators import apply_defaults
 class PipelineOperator(BaseOperator):
 
     @apply_defaults
-    def __init__(self, base_folder: str, create_task_folder: bool = True, *args, **kwargs):
+    def __init__(self, create_task_folder: bool = True, *args, **kwargs):
         super(PipelineOperator, self).__init__(*args, **kwargs)
 
-        self.base_folder: str = base_folder
         self.dag_folder = None
         self.dagrun_folder = None
-        self.task_folder = None if create_task_folder else ""
+        self.task_folder = None
+        self.create_task_folder = create_task_folder
 
     def execute(self, context):
-        self.dag_folder = join(self.base_folder, self.dag_id)
-        self.dagrun_folder = join(self.dag_folder, context["ds"])
-        self.task_folder = join(self.dagrun_folder, self.task_id) if self.task_folder is None else self.task_folder
+        self.dag_folder = context["task_instance"].xcom_pull(task_ids="init_dagrun_task", key="dag_folder")
+        self.dagrun_folder = context["task_instance"].xcom_pull(task_ids="init_dagrun_task", key="dagrun_folder")
 
-        for f in [self.dag_folder, self.dagrun_folder, self.task_folder]:
-            if f and not exists(f):
-                makedirs(f)
-                self.log.info("Created '{}'...".format(f))
+        if self.create_task_folder:
+            self.task_folder = join(self.dagrun_folder, self.task_id)
+            makedirs(self.task_folder)
+            self.log.info("Created '{}'...".format(self.task_folder))
 
         return self._execute_with_folder(context)
 
@@ -53,6 +52,32 @@ class PipelineOperator(BaseOperator):
 
     def _execute_with_folder(self, context):
         raise NotImplementedError()
+
+
+class DagRunInitOperator(BaseOperator):
+
+    @apply_defaults
+    def __init__(self, base_folder: str, *args, **kwargs):
+        super(DagRunInitOperator, self).__init__(*args, **kwargs)
+
+        self.base_folder = base_folder
+
+    def execute(self, context):
+        dag_folder = join(self.base_folder, self.dag_id)
+        dagrun_folder = join(dag_folder, context["ds"])
+
+        if not exists(dag_folder):
+            makedirs(dag_folder)
+            self.log.info("Created '{}'...".format(dag_folder))
+
+        if exists(dagrun_folder):
+            raise ValueError("The DagRun folder {} does already exist...".format(dagrun_folder))
+
+        makedirs(dagrun_folder)
+        self.log.info("Created '{}'...".format(dagrun_folder))
+
+        context["task_instance"].xcom_push(key="dag_folder", value=dag_folder)
+        context["task_instance"].xcom_push(key="dagrun_folder", value=dagrun_folder)
 
 
 class ExtractURLOperator(SkipMixin, PipelineOperator):
