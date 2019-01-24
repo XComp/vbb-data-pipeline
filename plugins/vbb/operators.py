@@ -117,14 +117,80 @@ class CheckURLOperator(SkipMixin, PipelineOperator):
         return None
 
 
-class DownloadOperator(PipelineOperator):
+class ChecksumOperator(SkipMixin, PipelineOperator):
 
     @apply_defaults
     def __init__(self, *args, **kwargs):
-        super(DownloadOperator, self).__init__(*args, **kwargs)
+        super(ChecksumOperator, self).__init__(create_task_folder=False, *args, **kwargs)
+
+    @staticmethod
+    def _calculate_checksum(zip_archive_path: str):
+        z = zipfile.ZipFile(zip_archive_path, "r")
+        checksum = 0
+        for info in z.infolist():
+            checksum = checksum ^ info.CRC
+
+        return checksum
+
+    def _get_checksum_file(self):
+        return "{}/checksum.txt".format(self.get_dag_folder())
+
+    def _get_old_checksum(self):
+        if not exists(self._get_checksum_file()):
+            return None
+
+        with open(self._get_checksum_file(), "r") as f:
+            line = f.readline().strip()
+
+        if line:
+            return int(line, 16)
+
+        return None
+
+    def _save_checksum(self, checksum: int):
+        with open(self._get_checksum_file(), "w") as f:
+            f.write(hex(checksum))
 
     def _execute_with_folder(self, context):
-        response = requests.get(context["task_instance"].xcom_pull("check_url_task"))
+        archive_path = context["task_instance"].xcom_pull("download_task")
+
+        checksum: int = ChecksumOperator._calculate_checksum(zip_archive_path=archive_path)
+        old_checksum: int = self._get_old_checksum()
+
+        if checksum != old_checksum:
+            self._save_checksum(checksum=checksum)
+            return archive_path
+
+        # no further processing is needed: skip all downstream tasks
+        self.log.info("Archive didn't change: Skipping all downstream tasks.")
+
+        downstream_tasks = context['task'].get_flat_relatives(upstream=False)
+        self.log.debug("Downstream task_ids %s", downstream_tasks)
+
+        if downstream_tasks:
+            self.skip(context['dag_run'], context['ti'].execution_date, downstream_tasks)
+
+
+class DownloadOperator(PipelineOperator):
+
+    @apply_defaults
+    def __init__(self, url: str, extract_download_url: Callable, *args, ** kwargs):
+        super(DownloadOperator, self).__init__(*args, **kwargs)
+
+        self.url: ParseResult = urlparse(url)
+        self.extract_download_url = extract_download_url
+
+    def _get_download_url(self):
+        response = requests.get(self.url.geturl())
+        download_url = self.extract_download_url(self.url, response)
+
+        if not download_url:
+            raise ValueError("No proper URL could have been extracted.")
+
+        return download_url
+
+    def _execute_with_folder(self, context):
+        response = requests.get(self._get_download_url())
 
         target_file = join(self.get_task_folder(), "archive.zip")
         with open(target_file, "wb") as zip_archive:

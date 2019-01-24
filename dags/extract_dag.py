@@ -7,7 +7,7 @@ from typing import Callable
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.subdag_operator import SubDagOperator
-from airflow.operators import CheckURLOperator, DownloadOperator, UnzipOperator, GZipOperator
+from airflow.operators import DownloadOperator, ChecksumOperator, UnzipOperator, GZipOperator
 
 default_args = {
     "start_date": datetime(2019, 1, 18),
@@ -53,13 +53,13 @@ def create_provider_dag(
                   description="This DAG extracts the GTFS archive provided by {}.".format(provider_description),
                   default_args=def_args)
 
-    check_url_operator = CheckURLOperator(dag=sub_dag,
-                                          task_id="check_url_task",
-                                          url=provider_url,
-                                          extract_download_url=extract_func)
-
     download_operator = DownloadOperator(dag=sub_dag,
-                                         task_id="download_task")
+                                         task_id="download_task",
+                                         url=provider_url,
+                                         extract_download_url=extract_func)
+
+    checksum_operator = ChecksumOperator(dag=sub_dag,
+                                         task_id="checksum_task")
 
     unzip_operator = UnzipOperator(dag=sub_dag,
                                    task_id="unzip_task")
@@ -67,7 +67,7 @@ def create_provider_dag(
     gzip_operator = GZipOperator(dag=sub_dag,
                                  task_id="gzip_task")
 
-    check_url_operator >> download_operator >> unzip_operator >> gzip_operator
+    download_operator >> checksum_operator >> unzip_operator >> gzip_operator
 
     return sub_dag
 
