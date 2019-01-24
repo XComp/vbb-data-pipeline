@@ -55,14 +55,15 @@ class PipelineOperator(BaseOperator):
         raise NotImplementedError()
 
 
-class CheckURLOperator(SkipMixin, PipelineOperator):
+class ExtractURLOperator(SkipMixin, PipelineOperator):
 
     @apply_defaults
-    def __init__(self, url: str, extract_download_url: Callable, base_folder: str, *args, **kwargs):
-        super(CheckURLOperator, self).__init__(base_folder=base_folder, create_task_folder=False, *args, **kwargs)
+    def __init__(self, url: str, extract_download_url: Callable, check_url: bool, *args, **kwargs):
+        super(ExtractURLOperator, self).__init__(create_task_folder=False, *args, **kwargs)
 
         self.url: ParseResult = urlparse(url)
         self.extract_download_url = extract_download_url
+        self.check_url = check_url
 
     def _get_url_filepath(self) -> str:
         return join(self.get_dag_folder(), "url.txt")
@@ -101,7 +102,7 @@ class CheckURLOperator(SkipMixin, PipelineOperator):
     def _execute_with_folder(self, context):
         download_url = self._get_download_url()
 
-        if self._is_new_url(new_url=download_url):
+        if not self.check_url or self._is_new_url(new_url=download_url):
             self.log.info("New URL found: {}".format(download_url))
             return download_url
 
@@ -174,23 +175,11 @@ class ChecksumOperator(SkipMixin, PipelineOperator):
 class DownloadOperator(PipelineOperator):
 
     @apply_defaults
-    def __init__(self, url: str, extract_download_url: Callable, *args, ** kwargs):
+    def __init__(self, *args, ** kwargs):
         super(DownloadOperator, self).__init__(*args, **kwargs)
 
-        self.url: ParseResult = urlparse(url)
-        self.extract_download_url = extract_download_url
-
-    def _get_download_url(self):
-        response = requests.get(self.url.geturl())
-        download_url = self.extract_download_url(self.url, response)
-
-        if not download_url:
-            raise ValueError("No proper URL could have been extracted.")
-
-        return download_url
-
     def _execute_with_folder(self, context):
-        response = requests.get(self._get_download_url())
+        response = requests.get( context["task_instance"].xcom_pull("extract_url_task"))
 
         target_file = join(self.get_task_folder(), "archive.zip")
         with open(target_file, "wb") as zip_archive:
