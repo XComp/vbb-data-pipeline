@@ -1,83 +1,15 @@
 import zipfile
-from os import listdir, makedirs
+from os import listdir
 from os.path import isfile, join, exists
+from shutil import copyfile
 import gzip
 import requests
 from urllib.parse import urlparse, ParseResult
 
 from typing import Callable
-from airflow.models import BaseOperator, SkipMixin, TaskInstance
+from airflow.models import SkipMixin, TaskInstance
 from airflow.utils.decorators import apply_defaults
-
-
-class PipelineOperator(BaseOperator):
-
-    @apply_defaults
-    def __init__(self, create_task_folder: bool = True, *args, **kwargs):
-        super(PipelineOperator, self).__init__(*args, **kwargs)
-
-        self.dag_folder = None
-        self.dagrun_folder = None
-        self.task_folder = None
-        self.create_task_folder = create_task_folder
-
-    def execute(self, context):
-        self.dag_folder = context["task_instance"].xcom_pull(task_ids="init_dagrun_task", key="dag_folder")
-        self.dagrun_folder = context["task_instance"].xcom_pull(task_ids="init_dagrun_task", key="dagrun_folder")
-
-        if self.create_task_folder:
-            self.task_folder = join(self.dagrun_folder, self.task_id)
-            makedirs(self.task_folder)
-            self.log.info("Created '{}'...".format(self.task_folder))
-
-        return self._execute_with_folder(context)
-
-    def get_dag_folder(self):
-        if not self.dag_folder:
-            raise ValueError("The DAG folder was not initialized.")
-
-        return self.dag_folder
-
-    def get_dagrun_folder(self):
-        if not self.dagrun_folder:
-            raise ValueError("The DagRun folder was not initialized.")
-
-        return self.dagrun_folder
-
-    def get_task_folder(self):
-        if not self.task_folder:
-            raise ValueError("The Task folder was not initialized.")
-
-        return self.task_folder
-
-    def _execute_with_folder(self, context):
-        raise NotImplementedError()
-
-
-class DagRunInitOperator(BaseOperator):
-
-    @apply_defaults
-    def __init__(self, base_folder: str, *args, **kwargs):
-        super(DagRunInitOperator, self).__init__(*args, **kwargs)
-
-        self.base_folder = base_folder
-
-    def execute(self, context):
-        dag_folder = join(self.base_folder, self.dag_id)
-        dagrun_folder = join(dag_folder, context["ds"])
-
-        if not exists(dag_folder):
-            makedirs(dag_folder)
-            self.log.info("Created '{}'...".format(dag_folder))
-
-        if exists(dagrun_folder):
-            raise ValueError("The DagRun folder {} does already exist...".format(dagrun_folder))
-
-        makedirs(dagrun_folder)
-        self.log.info("Created '{}'...".format(dagrun_folder))
-
-        context["task_instance"].xcom_push(key="dag_folder", value=dag_folder)
-        context["task_instance"].xcom_push(key="dagrun_folder", value=dagrun_folder)
+from utils.operators import PipelineOperator
 
 
 class ExtractURLOperator(SkipMixin, PipelineOperator):
@@ -200,17 +132,34 @@ class ChecksumOperator(SkipMixin, PipelineOperator):
 class DownloadOperator(PipelineOperator):
 
     @apply_defaults
-    def __init__(self, *args, ** kwargs):
+    def __init__(self, *args, **kwargs):
         super(DownloadOperator, self).__init__(*args, **kwargs)
 
     def _execute_with_folder(self, context):
-        response = requests.get( context["task_instance"].xcom_pull("extract_url_task"))
+        response = requests.get(context["task_instance"].xcom_pull("extract_url_task"))
 
         target_file = join(self.get_task_folder(), "archive.zip")
         with open(target_file, "wb") as zip_archive:
             zip_archive.write(response.content)
 
         self.log.info("Download finished.")
+
+        return target_file
+
+
+class FakeDownloadOperator(PipelineOperator):
+
+    @apply_defaults
+    def __init__(self, source_file, *args, **kwargs):
+        super(FakeDownloadOperator, self).__init__(*args, **kwargs)
+
+        self.source_file = source_file
+
+    def _execute_with_folder(self, context):
+        target_file = join(self.get_task_folder(), "archive.zip")
+        copyfile(self.source_file, target_file)
+
+        self.log.info("Copying finished.")
 
         return target_file
 
