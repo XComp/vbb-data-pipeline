@@ -23,7 +23,7 @@ class ExtractURLOperator(SkipMixin, PipelineOperator):
         self.check_url = check_url
 
     def _get_url_filepath(self) -> str:
-        return join(self.get_dag_folder(), "url.txt")
+        return join(self.get_dag_folder(), "{}_url.txt".format(self.get_provider_id()))
 
     def _get_download_url(self):
         response = requests.get(self.url.geturl())
@@ -91,7 +91,7 @@ class ChecksumOperator(SkipMixin, PipelineOperator):
         return checksum
 
     def _get_checksum_file(self):
-        return "{}/checksum.txt".format(self.get_dag_folder())
+        return "{}/{}_checksum.txt".format(self.get_dag_folder(), self.get_provider_id())
 
     def _get_old_checksum(self):
         if not exists(self._get_checksum_file()):
