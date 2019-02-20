@@ -34,7 +34,7 @@ def extract_vrs_download_url(**kwargs) -> str:
     response = kwargs["response"]
 
     match = re.search(
-        r'<a href="(http://[^"]*.zip)" target="_blank" class="external-link-new-window">GTFS-Daten ohne SPNV-Daten</a>',
+        r'<a href="(http://[^"]*.zip)" target="_blank" class="external-link-new-window">GTFS-Daten[^<]*</a>',
         response.content.decode("utf-8"))
 
     if not match:
@@ -94,12 +94,14 @@ dag_metadata = [
      "http://www.vbb.de/unsere-themen/vbbdigital/api-entwicklerinfos/datensaetze",
      extract_vbb_download_url,
      True,
-     default_args["base_folder"] + "/vbb~/2019-01-17/download_task/vbb-archive.zip"),
+     None  #default_args["base_folder"] + "/vbb~/2019-01-17/download_task/vbb-archive.zip"
+     ),
     ("vrs", "VRS Köln",
      "https://www.vrsinfo.de/fahrplan/oepnv-daten-fuer-webentwickler.html",
      extract_vrs_download_url,
      False,
-     default_args["base_folder"] + "/vrs~/2019-01-17/download_task/vbb-archive.zip")
+     None, #default_args["base_folder"] + "/vrs~/2019-01-17/download_task/vbb-archive.zip"
+     )
 ]
 
 main_dag_id = "gtfs_pipeline"
