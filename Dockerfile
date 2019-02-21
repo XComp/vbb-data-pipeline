@@ -73,7 +73,7 @@ RUN set -ex \
 COPY script/entrypoint.sh /entrypoint.sh
 COPY config/airflow.cfg ${AIRFLOW_HOME}/airflow.cfg
 
-# vbb pipeline -- we define the ARG down here to avoid building all the intermediate containers
+# GTFS pipeline -- we define the ARG down here to avoid building all the intermediate containers
 # when changing this variable
 ARG DATA_FOLDER=/usr/local/data
 
