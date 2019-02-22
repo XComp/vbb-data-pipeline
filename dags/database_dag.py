@@ -1,6 +1,6 @@
 from datetime import datetime
 from airflow import DAG
-from airflow.operators import Copy2DatabaseOperator, CheckSchemaOperator, CreateSchemaOperator
+from airflow.operators import DataSelectOperator, NewDataIdentifyOperator, LoadNewDataOperator
 
 default_args = {
     "start_date": datetime(2018, 12, 12),
@@ -8,38 +8,29 @@ default_args = {
 }
 
 base_folder = "/usr/local/data"
-task_folder_name = "unzip_task"
 
-db_schema = "vbb"
-db_conn_id = "postgres_vbb"
+db_schema = "gtfs"
+db_conn_id = "postgres_gtfs"
 
-dag = DAG(dag_id="vbb_database",
-          description="This DAG loads the available data into a database.",
-          schedule_interval="0 0 * * 0",
-          catchup=False,
-          default_args=default_args)
+with DAG(dag_id="database_load",
+         description="This DAG loads the available data into a database.",
+         schedule_interval="0 0 * * 0",
+         catchup=False,
+         default_args=default_args) as dag:
 
-check_schema_operator = CheckSchemaOperator(task_id="check_schema_task",
-                                            dag=dag,
-                                            create_schema_task_id="create_schema_task",
-                                            load_data_task_id="copy2db_task",
+    available_data_task = DataSelectOperator(task_id="data_select_task",
+                                             base_folder=base_folder)
+
+    new_data_task = NewDataIdentifyOperator(task_id="new_data_task",
                                             postgres_conn_id=db_conn_id,
                                             schema=db_schema)
 
-create_schema_operator = CreateSchemaOperator(task_id="create_schema_task",
-                                              dag=dag,
-                                              postgres_conn_id=db_conn_id,
-                                              schema=db_schema)
-
-copy2db_operator = Copy2DatabaseOperator(task_id="copy2db_task",
-                                         dag=dag,
+    load_data_task = LoadNewDataOperator(task_id="load_data_task",
                                          base_folder=base_folder,
-                                         task_folder_name=task_folder_name,
                                          postgres_conn_id=db_conn_id,
                                          schema=db_schema)
 
-check_schema_operator >> create_schema_operator >> copy2db_operator
-check_schema_operator >> copy2db_operator
+    available_data_task >> new_data_task >> load_data_task
 
 if __name__ == "__main__":
     dag.cli()

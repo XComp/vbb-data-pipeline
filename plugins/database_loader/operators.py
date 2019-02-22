@@ -1,8 +1,7 @@
 from os import listdir
-from os.path import join, exists
+from os.path import join, isfile
 
-from airflow.models import BaseOperator, SkipMixin
-from airflow.operators.python_operator import BranchPythonOperator
+from airflow.models import BaseOperator
 from airflow.operators.postgres_operator import PostgresHook
 from airflow.utils.decorators import apply_defaults
 
@@ -19,78 +18,80 @@ class PostgresMixin:
         return PostgresHook(postgres_conn_id=self.postgres_conn_id)
 
 
-class CheckSchemaOperator(PostgresMixin, BranchPythonOperator):
+class DataSelectOperator(BaseOperator):
 
     @apply_defaults
-    def __init__(self, create_schema_task_id, load_data_task_id, *args, **kwargs):
-        super(CheckSchemaOperator, self).__init__(python_callable=self._schema_exists, *args, **kwargs)
-
-        self.create_schema_task_id = create_schema_task_id
-        self.load_data_task_id = load_data_task_id
-
-    def _schema_exists(self):
-        hook = self.get_hook()
-        rows = hook.get_records(
-            sql="SELECT COUNT(schema_name) FROM information_schema.schemata WHERE schema_name = %s;",
-            parameters=(self.schema,))
-
-        self.log.info(rows)
-
-        if not rows:
-            raise ValueError("An error occurred while fetching the schema information")
-
-        return self.create_schema_task_id if rows[0][0] == 0 else self.load_data_task_id
-
-
-class CreateSchemaOperator(PostgresMixin, BaseOperator):
-
-    def __init__(self, *args, **kwargs):
-        super(CreateSchemaOperator, self).__init__(*args, **kwargs)
-
-    def execute(self, context):
-        sql_queries = ""
-        with open("plugins/database_loader/sql/schema.sql", "r") as schema_file:
-            for line in schema_file:
-                if not line.startswith("--"):
-                    sql_queries += line
-
-        hook = self.get_hook()
-        hook.run(sql=sql_queries)
-
-        for output in hook.conn.notices:
-            self.log.info(output)
-
-
-class Copy2DatabaseOperator(PostgresMixin, SkipMixin, BaseOperator):
-
-    def __init__(self, base_folder, task_folder_name, *args, **kwargs):
-        super(Copy2DatabaseOperator, self).__init__(*args, **kwargs)
+    def __init__(self, base_folder: str, *args, **kwargs):
+        super(DataSelectOperator, self).__init__(*args, **kwargs)
 
         self.base_folder = base_folder
-        self.task_folder_name = task_folder_name
-
-    def _skip_downstream_tasks(self, context):
-        downstream_tasks = context['task'].get_flat_relatives(upstream=False)
-        self.log.debug("Downstream task_ids %s", downstream_tasks)
-
-        if downstream_tasks:
-            self.skip(context['dag_run'], context['ti'].execution_date, downstream_tasks)
 
     def execute(self, context):
-        source_folder = join(self.base_folder, context["ds"], self.task_folder_name)
-        if not exists(source_folder):
-            self.log.info("No source data available.")
-            self._skip_downstream_tasks(context=context)
+        data = dict()
+        for f in listdir(self.base_folder):
+            p = join(self.base_folder, f)
+            if isfile(p):
+                self.log.info("{} is a file and will be ignored.".format(f))
+                continue
 
-            return
+            if f not in data:
+                self.log.info("{} wasn't processed, yet.".format(f))
+                data[f] = set()
 
-        sql_queries = []
-        for file_name in listdir(self.source_folder):
-            file_path = join(self.source_folder, file_name)
-            table_name = file_name.rsplit(".", 1)[0]
-            sql_queries.append("\\COPY %s FROM '%s' DELIMITER ';' CSV;".format(table_name, file_path))
+            for zip_archive in listdir(p):
+                if not zip_archive.endswith("zip"):
+                    self.log.info("{} is not a ZIP archive and will be ignored.".format(zip_archive))
+                    continue
 
+                self.log.info("{} is going to be processed.".format(zip_archive))
+                data[f].add(zip_archive.split(".")[0])
+
+        return data
+
+
+class NewDataIdentifyOperator(PostgresMixin, BaseOperator):
+
+    @apply_defaults
+    def __init__(self, *args, **kwargs):
+        super(NewDataIdentifyOperator, self).__init__(*args, **kwargs)
+
+    def execute(self, context):
         hook = self.get_hook()
-        hook.run(sql=sql_queries)
-        for output in hook.conn.notices:
-            self.log.info(output)
+        available_data = context["ti"].xcom_pull("data_select_task")
+
+        conn = hook.get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT provider_id, run_date FROM run;")
+
+        row = cursor.fetchone()
+        while row:
+            provider_id = row[0]
+            run_date = row[1]
+
+            if provider_id in available_data:
+                available_data[provider_id].discard(run_date)
+
+                if not available_data[provider_id]:
+                    # remove provider entry entirely if no data is left for it
+                    available_data.pop(provider_id, None)
+
+            row = cursor.fetchone()
+
+        return available_data
+
+
+class LoadNewDataOperator(PostgresMixin, BaseOperator):
+
+    @apply_defaults
+    def __init__(self, base_folder: str, *args, **kwargs):
+        super(LoadNewDataOperator, self).__init__(*args, **kwargs)
+
+        self.base_folder = base_folder
+
+    def execute(self, context):
+        new_data = context["ti"].xcom_pull("new_data_task")
+
+        self.log.info("The following files are going to be loaded:")
+        for provider_id, run_dates in new_data.items():
+            for run_date in run_dates:
+                self.log.info("  {}/{}/{}.zip".format(self.base_folder, provider_id, run_date))

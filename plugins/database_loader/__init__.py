@@ -1,7 +1,7 @@
 from airflow.plugins_manager import AirflowPlugin
-from .operators import CheckSchemaOperator, CreateSchemaOperator, Copy2DatabaseOperator
+from .operators import DataSelectOperator, NewDataIdentifyOperator, LoadNewDataOperator
 
 
 class DatabasePlugin(AirflowPlugin):
     name = "database_plugin"
-    operators = [CheckSchemaOperator, CreateSchemaOperator, Copy2DatabaseOperator]
+    operators = [DataSelectOperator, NewDataIdentifyOperator, LoadNewDataOperator]
