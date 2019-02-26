@@ -8,8 +8,11 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.provider
     (
-      provider_id       VARCHAR(8) PRIMARY KEY NOT NULL,
-      created           TIMESTAMP NOT NULL
+      provider_id           VARCHAR(8) PRIMARY KEY NOT NULL,
+      created               TIMESTAMP NOT NULL,
+      feed_publisher_name   TEXT NOT NULL,
+      feed_publisher_url    TEXT NOT NULL,
+      feed_lang             TEXT NOT NULL
     );
 
     CREATE TABLE gtfs.run
@@ -21,6 +24,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.agency
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       agency_id         text PRIMARY KEY NOT NULL,
       agency_name       text NOT NULL,
       agency_url        text NOT NULL,
@@ -31,6 +35,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.stops
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       stop_id           text PRIMARY KEY,
       stop_code         text NULL,
       stop_name         text NOT NULL,
@@ -45,6 +50,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.routes
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       route_id          text PRIMARY KEY,
       agency_id         text NULL,
       route_short_name  text NULL,
@@ -58,6 +64,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.calendar
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       service_id        text PRIMARY KEY,
       monday            boolean NOT NULL,
       tuesday           boolean NOT NULL,
@@ -72,6 +79,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.calendar_dates
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       service_id text NOT NULL,
       date numeric(8) NOT NULL,
       exception_type integer NOT NULL
@@ -79,6 +87,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.shapes
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       shape_id          text,
       shape_pt_lat      double precision NOT NULL,
       shape_pt_lon      double precision NOT NULL,
@@ -88,6 +97,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.trips
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       route_id          text NOT NULL,
       service_id        text NOT NULL,
       trip_id           text NOT NULL PRIMARY KEY,
@@ -99,6 +109,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.stop_times
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
       trip_id           text NOT NULL,
       arrival_time      interval NOT NULL,
       departure_time    interval NOT NULL,
@@ -112,6 +123,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.transfers
     (
+      run_id            INT NOT NULL REFERENCES gtfs.run(run_id),
         from_stop_id  text NOT NULL,
         to_stop_id    text NOT NULL,
         transfer_type   integer NOT NULL,
