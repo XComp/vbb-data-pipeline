@@ -110,7 +110,7 @@ class DownloadOperator(DataProviderOperator):
     def execute(self, context):
         response = requests.get(context["task_instance"].xcom_pull("extract_url_task"))
 
-        target_file = join(self.get_provider_folder(), "new_archive.zip")
+        target_file = join(self.get_provider_folder(), "{}.zip~".format(context["ds"]))
         with open(target_file, "wb") as zip_archive:
             zip_archive.write(response.content)
 
@@ -128,7 +128,7 @@ class FakeDownloadOperator(DataProviderOperator):
         self.source_file = source_file
 
     def execute(self, context):
-        target_file = join(self.get_provider_folder(), "new_archive.zip")
+        target_file = join(self.get_provider_folder(), "{}.zip~".format(context["ds"]))
         copyfile(self.source_file, target_file)
 
         self.log.info("Copying finished.")
@@ -168,7 +168,12 @@ class ChecksumOperator(SkipMixin, DataProviderOperator):
 
                 return
 
-        new_archive_path = join(self.get_provider_folder(), "{}.zip".format(context["ds"]))
+        # consistency check: does the temporary file actually ends .zip~
+        assert old_archive_path.endswith(".zip~"), "The temporary filename is not having the expected suffix: {}"\
+            .format(old_archive)
+
+        # remove the ~ from the end of the file
+        new_archive_path = old_archive_path[0:-1]
         copyfile(archive_path, new_archive_path)
         remove(archive_path)
 
