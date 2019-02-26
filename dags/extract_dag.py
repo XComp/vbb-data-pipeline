@@ -10,7 +10,6 @@ from airflow.operators import ExtractURLOperator, DownloadOperator, FakeDownload
 default_args = {
     "start_date": datetime(2019, 2, 21),
     "schedule_interval": None,
-    "catchup": False,
     "owner": "mapohl",
     "base_folder": "/usr/local/data"
 }
@@ -57,7 +56,8 @@ def create_provider_dag(
     def_args["provider_id"] = provider_id
     provider_dag = DAG(dag_id=provider_dag_id,
                        description="This DAG extracts the GTFS archive provided by {}.".format(provider_description),
-                       default_args=def_args)
+                       default_args=def_args,
+                       catchup=False)
 
     checksum_operator = ChecksumOperator(dag=provider_dag,
                                          task_id="checksum_task")
@@ -101,7 +101,8 @@ dag_metadata = [
 main_dag_id = "gtfs_pipeline"
 with DAG(dag_id=main_dag_id,
          description="Extracts the GTFS data from various sources.",
-         default_args=default_args) as dag:
+         default_args=default_args,
+         catchup=False) as dag:
 
     provider_start = DummyOperator(task_id="start")
 
