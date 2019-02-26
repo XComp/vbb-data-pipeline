@@ -1,26 +1,30 @@
 version: '2.1'
 services:
-    postgres_airflow:
+    database:
         image: postgres:9.6
+        container_name: database
         volumes: 
             - ./script/dbinit:/docker-entrypoint-initdb.d
         environment:
+            - POSTGRES_DB=airflow
             - POSTGRES_USER=airflow
             - POSTGRES_PASSWORD
-            - POSTGRES_DB=airflow
             - GTFS_DB=gtfs
-            - GTFS_DB_USER=gtfs
+            - GTFS_DB_USER
             - GTFS_DB_PASSWORD
         ports:
             - "5432:5432"
     webserver:
         image: mapohl/airflow:latest
+        container_name: webserver
         restart: always
         depends_on:
-            - postgres_airflow
+            - database
         environment:
             - LOAD_EX=n
             - EXECUTOR=Local
+            - GTFS_DB_USER
+            - GTFS_DB_PASSWORD
         volumes:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins

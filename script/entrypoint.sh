@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 
+set -u
+
 TRY_LOOP="20"
 
 : "${REDIS_HOST:="redis"}"
 : "${REDIS_PORT:="6379"}"
 : "${REDIS_PASSWORD:=""}"
 
-: "${POSTGRES_HOST:="postgres_airflow"}"
+: "${POSTGRES_HOST:="database"}"
 : "${POSTGRES_PORT:="5432"}"
 : "${POSTGRES_USER:="airflow"}"
 : "${POSTGRES_PASSWORD:="airflow"}"
 : "${POSTGRES_DB:="airflow"}"
+
+: "${GTFS_SCHEMA:="gtfs"}"
 
 # Defaults and back-compat
 : "${AIRFLOW__CORE__FERNET_KEY:=${FERNET_KEY:=$(python -c "from cryptography.fernet import Fernet; FERNET_KEY = Fernet.generate_key().decode(); print(FERNET_KEY)")}}"
@@ -70,6 +74,14 @@ fi
 case "$1" in
   webserver)
     airflow initdb
+    airflow connections -a \
+        --conn_id postgres_gtfs \
+        --conn_type postgres \
+        --conn_host "${POSTGRES_HOST}" \
+        --conn_login "${GTFS_DB_USER}" \
+        --conn_password "${GTFS_DB_PASSWORD}" \
+        --conn_schema "${GTFS_SCHEMA}" \
+        --conn_port ${POSTGRES_PORT}
     if [ "$AIRFLOW__CORE__EXECUTOR" = "LocalExecutor" ]; then
       # With the "Local" executor it should all run in one container.
       airflow scheduler &
