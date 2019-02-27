@@ -12,6 +12,7 @@ services:
             - GTFS_DB=gtfs
             - GTFS_DB_USER
             - GTFS_DB_PASSWORD
+            - FERNET_KEY
         ports:
             - "5432:5432"
     webserver:
@@ -25,6 +26,7 @@ services:
             - EXECUTOR=Local
             - GTFS_DB_USER
             - GTFS_DB_PASSWORD
+            - FERNET_KEY
         volumes:
             - ./dags:/usr/local/airflow/dags
             # Uncomment to include custom plugins
