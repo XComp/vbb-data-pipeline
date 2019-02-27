@@ -1,5 +1,9 @@
 from os import listdir
 from os.path import join, isfile
+from zipfile import ZipFile
+
+import csv
+import io
 
 from airflow.models import BaseOperator
 from airflow.operators.postgres_operator import PostgresHook
@@ -91,7 +95,65 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
     def execute(self, context):
         new_data = context["ti"].xcom_pull("new_data_task")
 
+        assert new_data, "No new data was detected."
+
         self.log.info("The following files are going to be loaded:")
         for provider_id, run_dates in new_data.items():
             for run_date in run_dates:
-                self.log.info("  {}/{}/{}.zip".format(self.base_folder, provider_id, run_date))
+                zip_archive_path = "{}/{}/{}.zip".format(self.base_folder, provider_id, run_date)
+                self.log.info(zip_archive_path)
+
+                self.load(zip_archive_path=zip_archive_path, provider_id=provider_id, run_date=run_date)
+
+    @staticmethod
+    def get_row_count(cursor, table_name):
+        cursor.execute("SELECT COUNT(*) FROM {}".format(table_name))
+        return cursor.fetchone()[0]
+
+    def load(self, zip_archive_path, provider_id, run_date):
+        with self.get_hook().get_conn() as conn:
+            with conn, conn.cursor() as cursor:
+                # insert provider if it does not exist, yet
+                provider_query = """INSERT INTO gtfs.provider (provider_id, created) 
+                                    VALUES ('{}', NOW()) ON CONFLICT DO NOTHING;""".format(provider_id)
+                cursor.execute(provider_query)
+
+                # insert run record returning the new ID
+                run_query = """INSERT INTO gtfs.run (run_date, provider_id) 
+                               VALUES ('{}', '{}') RETURNING run_id;""".format(run_date, provider_id)
+                cursor.execute(run_query)
+                run_id = cursor.fetchone()[0]
+
+                # retrieving the available tables
+                cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'gtfs';")
+                available_tables = [row[0] for row in cursor.fetchall()]
+
+                # extract data from zip archive
+                with ZipFile(zip_archive_path, "r") as zip_archive:
+                    for zip_member in zip_archive.namelist():
+                        table_name = zip_member.split(".")[0]
+
+                        # don't load data if the table does not exist
+                        if table_name not in available_tables:
+                            self.log.warn("Table '{}' is not initialized in the database.".format(table_name))
+                            continue
+
+                        old_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
+
+                        # process CSV file
+                        with zip_archive.open(zip_member, "r") as csv_file:
+
+                            csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
+                            for row in csv_reader:
+                                insert_query = """INSERT INTO gtfs.{} (run_id, {}) VALUES ({}, {})""".format(
+                                    table_name,
+                                    ",".join([field for field in row]),
+                                    run_id,
+                                    ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
+                                )
+                                cursor.execute(insert_query)
+
+                        new_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
+
+                        self.log.info("Finished processing {}/{}/{}: {} rows added"
+                                      .format(provider_id, run_date, zip_member, new_row_count - old_row_count))
