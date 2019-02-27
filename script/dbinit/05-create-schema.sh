@@ -43,7 +43,8 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         stop_url                TEXT NULL,
         location_type           BOOLEAN NULL,
         parent_station          TEXT NULL,
-        stop_timezone           TEXT NULL
+        stop_timezone           TEXT NULL,
+        wheelchair_boarding     TEXT NULL
     );
 
     CREATE TABLE gtfs.routes (
@@ -95,9 +96,12 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         service_id              TEXT NOT NULL,
         trip_id                 TEXT NOT NULL PRIMARY KEY,
         trip_headsign           TEXT NULL,
+        trip_short_name         TEXT NULL,
         direction_id            BOOLEAN NULL,
         block_id                TEXT NULL,
-        shape_id                TEXT NULL
+        shape_id                TEXT NULL,
+        wheelchar_accessible    TEXT NULL,
+        bikes_allowed           TEXT NULL
     );
 
     CREATE TABLE gtfs.stop_times (
@@ -118,7 +122,11 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         from_stop_id            TEXT NULL,
         to_stop_id              TEXT NULL,
         transfer_type           INT NULL,
-        min_transfer_time       INT
+        min_transfer_time       INT NULL,
+        from_route_id           TEXT NULL,
+        to_route_id             TEXT NULL,
+        from_trip_id            TEXT NULL,
+        to_trip_id              TEXT NULL
     );
 
     CREATE TABLE gtfs.frequencies (
