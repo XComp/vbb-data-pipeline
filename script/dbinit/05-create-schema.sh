@@ -100,7 +100,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         direction_id            BOOLEAN NULL,
         block_id                TEXT NULL,
         shape_id                TEXT NULL,
-        wheelchar_accessible    TEXT NULL,
+        wheelchair_accessible   TEXT NULL,
         bikes_allowed           TEXT NULL
     );
 
