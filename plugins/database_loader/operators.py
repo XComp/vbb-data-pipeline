@@ -145,7 +145,8 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
 
                             csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
                             for row in csv_reader:
-                                insert_query = """INSERT INTO gtfs.{} (run_id, {}) VALUES ({}, {})""".format(
+                                insert_query = """INSERT INTO gtfs.{} (run_id, {}) VALUES ({}, {}) 
+                                                  ON CONFLICT DO UPDATE""".format(
                                     table_name,
                                     ",".join([field for field in row]),
                                     run_id,
