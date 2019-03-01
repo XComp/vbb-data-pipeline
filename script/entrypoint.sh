@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -u
-
 TRY_LOOP="20"
 
 : "${REDIS_HOST:="redis"}"
