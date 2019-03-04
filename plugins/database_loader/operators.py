@@ -4,6 +4,7 @@ from zipfile import ZipFile
 
 import csv
 import io
+import re
 
 from airflow.models import BaseOperator
 from airflow.operators.postgres_operator import PostgresHook
@@ -162,7 +163,8 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
                             data_cache = []
                             for i, row in enumerate(csv_reader):
                                 if len(columns) < 2:
-                                    columns.extend([field for field in row])
+                                    # we have to clean the fields from special characters - KVV has strange characters in the header
+                                    columns.extend([re.sub(r'[^a-z,_]', "", field.strip()) for field in row])
                                 data_cache.append("({}, {})".format(
                                     run_id,
                                     ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
