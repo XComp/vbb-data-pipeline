@@ -3,6 +3,9 @@
 set -e
 set -u
 
+#
+# I got the initial schema definition from https://github.com/tyleragreen/gtfs-schema/blob/master/mta/schema.sql
+#
 PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_DB_USER" <<-EOSQL
     CREATE SCHEMA gtfs;
 
