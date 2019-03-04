@@ -129,8 +129,13 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
                 available_tables = [row[0] for row in cursor.fetchall()]
 
                 # extract data from zip archive
+                # we need to apply some ordering to ensure that the foreign key constraint never fails
+                zip_member_order = {"agency.txt": 0, "calendar.txt": 0, "shapes.txt": 0, "stops.txt": 0,
+                                    "calendar_dates.txt": 1, "routes.txt": 1,
+                                    "trips.txt": 2,
+                                    "frequencies.txt": 3, "stop_times.txt": 3, "transfers.txt": 3}
                 with ZipFile(zip_archive_path, "r") as zip_archive:
-                    for zip_member in zip_archive.namelist():
+                    for zip_member in sorted(zip_archive.namelist(), key=lambda k: zip_member_order.get(k, 9999)):
                         table_name = zip_member.split(".")[0]
 
                         # don't load data if the table does not exist
