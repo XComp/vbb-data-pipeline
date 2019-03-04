@@ -9,7 +9,6 @@ from airflow.operators import ExtractURLOperator, DownloadOperator, FakeDownload
 
 default_args = {
     "start_date": datetime(2019, 2, 21),
-    "schedule_interval": None,
     "owner": "mapohl",
     "base_folder": "/usr/local/data"
 }
@@ -117,6 +116,7 @@ dag_metadata = [
 main_dag_id = "gtfs_pipeline"
 with DAG(dag_id=main_dag_id,
          description="Extracts the GTFS data from various sources.",
+         schedule_interval=None,
          default_args=default_args,
          catchup=False) as dag:
 

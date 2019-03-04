@@ -14,7 +14,7 @@ db_conn_id = "postgres_gtfs"
 
 with DAG(dag_id="database_load",
          description="This DAG loads the available data into a database.",
-         schedule_interval="0 0 * * 0",
+         schedule_interval=None,
          catchup=False,
          default_args=default_args) as dag:
 
