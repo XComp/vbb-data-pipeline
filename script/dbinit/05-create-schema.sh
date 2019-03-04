@@ -25,6 +25,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.agency (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         agency_id               TEXT NOT NULL,
         agency_name             TEXT NULL,
         agency_url              TEXT NULL,
@@ -32,12 +33,14 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         agency_lang             TEXT NULL,
         agency_phone            TEXT NULL,
         agency_fare_url         TEXT NULL,
-        PRIMARY KEY (run_id, agency_id),
-        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id)
+        PRIMARY KEY (provider_id, agency_id),
+        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id)
     );
 
     CREATE TABLE gtfs.stops (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         stop_id                 TEXT NOT NULL,
         stop_code               TEXT NULL,
         stop_name               TEXT NULL,
@@ -51,11 +54,13 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         stop_timezone           TEXT NULL,
         wheelchair_boarding     TEXT NULL,
         PRIMARY KEY (run_id, stop_id),
-        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id)
+        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id)
     );
 
     CREATE TABLE gtfs.routes (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         route_id                TEXT NOT NULL,
         agency_id               TEXT NOT NULL,
         route_short_name        TEXT NULL,
@@ -67,11 +72,13 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         route_text_color        TEXT ,
         PRIMARY KEY (run_id, route_id),
         FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
-        FOREIGN KEY (run_id, agency_id) REFERENCES gtfs.agency(run_id, agency_id)
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id),
+        FOREIGN KEY (provider_id, agency_id) REFERENCES gtfs.agency(provider_id, agency_id)
     );
 
     CREATE TABLE gtfs.calendar (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         service_id              TEXT NOT NULL,
         monday                  BOOLEAN NOT NULL,
         tuesday                 BOOLEAN NOT NULL,
@@ -83,30 +90,36 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         start_date              NUMERIC(8) NOT NULL,
         end_date                NUMERIC(8) NOT NULL,
         PRIMARY KEY (run_id, service_id),
-        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id)
+        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id)
     );
 
     CREATE TABLE gtfs.calendar_dates (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         service_id              TEXT NOT NULL,
         date                    NUMERIC(8) NULL,
         exception_type          INT NULL,
-        FOREIGN KEY (run_id, service_id) REFERENCES gtfs.calendar(run_id, service_id)
+        FOREIGN KEY (run_id, service_id) REFERENCES gtfs.calendar(run_id, service_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id)
     );
 
     CREATE TABLE gtfs.shapes (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         shape_id                TEXT NOT NULL,
         shape_pt_lat            DOUBLE PRECISION NULL,
         shape_pt_lon            DOUBLE PRECISION NULL,
         shape_pt_sequence       INT NULL,
         shape_dist_traveled     TEXT NULL,
         PRIMARY KEY (run_id, shape_id),
-        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id)
+        FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id)
     );
 
     CREATE TABLE gtfs.trips (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         route_id                TEXT NOT NULL,
         service_id              TEXT NOT NULL,
         trip_id                 TEXT NOT NULL,
@@ -119,6 +132,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         bikes_allowed           TEXT NULL,
         PRIMARY KEY (run_id, trip_id),
         FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id),
         FOREIGN KEY (run_id, route_id) REFERENCES gtfs.routes(run_id, route_id),
         FOREIGN KEY (run_id, service_id) REFERENCES gtfs.calendar(run_id, service_id),
         FOREIGN KEY (run_id, shape_id) REFERENCES gtfs.shapes(run_id, shape_id)
@@ -127,6 +141,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.stop_times (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         trip_id                 TEXT NOT NULL,
         arrival_time            INTERVAL NULL,
         departure_time          INTERVAL NULL,
@@ -137,12 +152,14 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         drop_off_type           INT NULL CHECK(drop_off_type >= 0 and drop_off_type <=3),
         shape_dist_traveled     INT NULL,
         FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id),
         FOREIGN KEY (run_id, trip_id) REFERENCES gtfs.trips(run_id, trip_id),
         FOREIGN KEY (run_id, stop_id) REFERENCES gtfs.stops(run_id, stop_id)
     );
 
     CREATE TABLE gtfs.transfers (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         from_stop_id            TEXT NULL,
         to_stop_id              TEXT NULL,
         transfer_type           INT NULL,
@@ -152,6 +169,7 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
         from_trip_id            TEXT NULL,
         to_trip_id              TEXT NULL,
         FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id),
         FOREIGN KEY (run_id, from_stop_id) REFERENCES gtfs.stops(run_id, stop_id),
         FOREIGN KEY (run_id, to_stop_id) REFERENCES gtfs.stops(run_id, stop_id),
         FOREIGN KEY (run_id, from_route_id) REFERENCES gtfs.routes(run_id, route_id),
@@ -162,12 +180,14 @@ PGPASSWORD="$GTFS_DB_PASSWORD" psql -v ON_ERROR_STOP=1 -d "$GTFS_DB" -U "$GTFS_D
 
     CREATE TABLE gtfs.frequencies (
         run_id                  INT NOT NULL,
+        provider_id             VARCHAR(8) NOT NULL,
         trip_id                 TEXT NOT NULL,
         start_time              TEXT NULL,
         end_time                TEXT NULL,
         headway_secs            TEXT NULL,
         exact_times             TEXT NULL,
         FOREIGN KEY (run_id) REFERENCES gtfs.run(run_id),
+        FOREIGN KEY (provider_id) REFERENCES gtfs.provider(provider_id),
         FOREIGN KEY (run_id, trip_id) REFERENCES gtfs.trips(run_id, trip_id)
     );
 EOSQL

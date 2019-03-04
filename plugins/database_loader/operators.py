@@ -149,33 +149,38 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
                         # process CSV file
                         with zip_archive.open(zip_member, "r") as csv_file:
 
-                            def insert_data(columns, data_cache):
+                            def insert_data(cols, d_cache):
+                                if not d_cache:
+                                    return
+
                                 insert_query = """INSERT INTO gtfs.{} ({}) VALUES {} 
                                                   ON CONFLICT DO NOTHING""".format(
                                     table_name,
-                                    ",".join(columns),
-                                    ",".join(data_cache)
+                                    ",".join(cols),
+                                    ",".join(d_cache)
                                 )
                                 cursor.execute(insert_query)
 
                             csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
-                            columns = ["run_id"]
+                            columns = ["run_id", "provider_id"]
                             data_cache = []
                             for i, row in enumerate(csv_reader):
-                                if len(columns) < 2:
-                                    # we have to clean the fields from special characters - KVV has strange characters in the header
+                                if len(columns) < 3:
+                                    # we have to clean the fields from special characters - KVV has strange characters
+                                    # in the header
                                     columns.extend([re.sub(r'[^a-z,_]', "", field.strip()) for field in row])
-                                data_cache.append("({}, {})".format(
+                                data_cache.append("({}, '{}', {})".format(
                                     run_id,
+                                    provider_id,
                                     ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
                                 ))
 
                                 if i % 50000 == 0:
-                                    insert_data(columns=columns, data_cache=data_cache)
+                                    insert_data(cols=columns, d_cache=data_cache)
                                     self.log.debug("50000 rows inserted into {}.".format(table_name))
                                     data_cache = []
 
-                            insert_data(columns=columns, data_cache=data_cache)
+                            insert_data(cols=columns, d_cache=data_cache)
 
                         new_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
 
