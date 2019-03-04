@@ -15,7 +15,7 @@ is going to change in a way that other sources should be added as well.
 
 ## Setup
 
-Starting the project is done by running `docker-compose start` from the project's base folder. The Airflow webserver can be 
+Starting the project is done by running `docker-compose up -d` from the project's base folder. The Airflow webserver can be 
 accessed via [localhost:8080](http://localhost:8080/).
 
-The project can be stopped calling `docker-compose stop` from the project's base folder.
+The project can be stopped calling `docker-compose down` from the project's base folder.
