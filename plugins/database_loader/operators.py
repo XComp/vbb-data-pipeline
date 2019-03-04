@@ -148,16 +148,32 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
                         # process CSV file
                         with zip_archive.open(zip_member, "r") as csv_file:
 
-                            csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
-                            for row in csv_reader:
-                                insert_query = """INSERT INTO gtfs.{} (run_id, {}) VALUES ({}, {}) 
+                            def insert_data(columns, data_cache):
+                                insert_query = """INSERT INTO gtfs.{} ({}) VALUES {} 
                                                   ON CONFLICT DO NOTHING""".format(
                                     table_name,
-                                    ",".join([field for field in row]),
-                                    run_id,
-                                    ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
+                                    ",".join(columns),
+                                    ",".join(data_cache)
                                 )
                                 cursor.execute(insert_query)
+
+                            csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
+                            columns = ["run_id"]
+                            data_cache = []
+                            for i, row in enumerate(csv_reader):
+                                if len(columns) < 2:
+                                    columns.extend([field for field in row])
+                                data_cache.append("({}, {})".format(
+                                    run_id,
+                                    ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
+                                ))
+
+                                if i % 50000 == 0:
+                                    insert_data(columns=columns, data_cache=data_cache)
+                                    self.log.debug("50000 rows inserted into {}.".format(table_name))
+                                    data_cache = []
+
+                            insert_data(columns=columns, data_cache=data_cache)
 
                         new_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
 
