@@ -42,6 +42,19 @@ def extract_vrs_download_url(**kwargs) -> str:
     return match.group(1)
 
 
+def extract_kvv_download_url(**kwargs) -> str:
+    response = kwargs["response"]
+
+    match = re.search(
+        r'<a href="(https://[^"]*.zip)" title="KVV GTFS-Daten" target="_blank" class="external-link-new-window">[^<]*</a>',
+        response.content.decode("utf-8"))
+
+    if not match:
+        return None
+
+    return match.group(1)
+
+
 def create_provider_dag(
         parent_dag_id: str,
         provider_id: str,
@@ -88,14 +101,17 @@ dag_metadata = [
      "http://www.vbb.de/unsere-themen/vbbdigital/api-entwicklerinfos/datensaetze",
      extract_vbb_download_url,
      False,
-     None
-     ),
+     None),
     ("vrs", "VRS Köln",
      "https://www.vrsinfo.de/fahrplan/oepnv-daten-fuer-webentwickler.html",
      extract_vrs_download_url,
      False,
-     None
-     )
+     None),
+    ("kvv", "Karlsruher Verkehrsverbund",
+     "https://www.kvv.de/fahrt-planen/fahrplaene/open-data.html",
+     extract_kvv_download_url,
+     False,
+     None)
 ]
 
 main_dag_id = "gtfs_pipeline"
