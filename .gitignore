@@ -3,9 +3,9 @@ airflow.db
 airflow-*.pid
 logs
 
-# VBB pipeline
-pipeline-data/*
-!pipeline-data/README.md
+# GTFS pipeline
+airflow/pipeline-data/*
+!airflow/pipeline-data/README.md
 
 # other resources
 .idea
