@@ -5,6 +5,7 @@ services:
         container_name: database
         volumes: 
             - ./script/dbinit:/docker-entrypoint-initdb.d
+            - ./database-data:/var/lib/postgresql/data
         environment:
             - POSTGRES_DB=airflow
             - POSTGRES_USER=airflow

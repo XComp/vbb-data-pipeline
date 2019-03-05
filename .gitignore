@@ -7,6 +7,10 @@ logs
 airflow/pipeline-data/*
 !airflow/pipeline-data/README.md
 
+# database-related data
+airflow/database-data/*
+!airflow/database-data/README.md
+
 # other resources
 .idea
 *.pyc
