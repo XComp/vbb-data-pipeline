@@ -113,7 +113,7 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
                 GtfsArrival arrival = this.arrivalQueue.poll();
 
                 if (arrival == null) {
-                    logger.info("Wait for {} second.", pollSleepTime);
+                    logger.info("Wait for {} millisecond.", pollSleepTime);
                     Thread.sleep(pollSleepTime);
                     pollSleepTime *= 2;
                     continue;
