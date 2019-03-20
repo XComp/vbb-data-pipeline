@@ -106,10 +106,20 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
     public Void call() throws ExecutionException, InterruptedException, JsonProcessingException, SQLException {
         this.init();
 
+        int pollSleepTime = 1000;
         try {
             ObjectMapper objMapper = new ObjectMapper();
             while (true) {
                 GtfsArrival arrival = this.arrivalQueue.poll();
+
+                if (arrival == null) {
+                    logger.info("Wait for {} second.", pollSleepTime);
+                    Thread.sleep(pollSleepTime);
+                    pollSleepTime *= 2;
+                    continue;
+                } else {
+                    pollSleepTime = 1000;
+                }
 
                 long waitTime = Math.max(0, arrival.getLocalTime().until(LocalDateTime.now(), ChronoUnit.MILLIS) - this.timeDiff);
 
