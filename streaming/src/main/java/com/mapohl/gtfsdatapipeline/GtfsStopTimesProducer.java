@@ -15,7 +15,6 @@ import picocli.CommandLine;
 
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -101,7 +100,7 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
 
         this.producer = new KafkaProducer<>(props);
-        this.timeDiff = this.startTime.until(LocalDate.now(), ChronoUnit.MILLIS);
+        this.timeDiff = this.startTime.until(LocalDateTime.now(), ChronoUnit.MILLIS);
     }
 
     public Void call() throws ExecutionException, InterruptedException, JsonProcessingException, SQLException {
