@@ -47,6 +47,11 @@
             <artifactId>picocli</artifactId>
             <version>3.9.5</version>
         </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.2.3</version>
+        </dependency>
 
 
         <!-- Test -->
@@ -70,6 +75,32 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.21.0</version>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.4.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <mainClass>com.mapohl.gtfsdatapipeline.GtfsStopTimesProducer</mainClass>
+                    <arguments>
+                        <!--<arguments>-classpath</arguments>
+                        <classpath/>-->
+                        <argument>--topic</argument>
+                        <argument>gtfs-stop-arrivals</argument>
+                        <argument>--kafka</argument>
+                        <argument>localhost</argument>
+                        <argument>--start</argument>
+                        <argument>2018-12-10T12:00:00.000</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 </project>
