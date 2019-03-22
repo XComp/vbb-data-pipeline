@@ -89,14 +89,14 @@
                 <configuration>
                     <mainClass>com.mapohl.gtfsdatapipeline.GtfsStopTimesProducer</mainClass>
                     <arguments>
-                        <!--<arguments>-classpath</arguments>
-                        <classpath/>-->
                         <argument>--topic</argument>
-                        <argument>gtfs-stop-arrivals</argument>
+                        <argument>gtfs-arrivals</argument>
                         <argument>--kafka</argument>
-                        <argument>localhost</argument>
+                        <argument>10.156.0.5:9092 </argument>
                         <argument>--start</argument>
                         <argument>2018-12-10T12:00:00.000</argument>
+                        <argument>--days</argument>
+                        <argument>2</argument>
                     </arguments>
                 </configuration>
             </plugin>
