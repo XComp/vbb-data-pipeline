@@ -1,21 +1,27 @@
 package com.mapohl.gtfsdatapipeline;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Collection;
+import java.util.Queue;
 import java.util.Set;
 
 public class GtfsStopTimesSelector {
 
+    private static Logger logger = LoggerFactory.getLogger(GtfsStopTimesSelector.class);
+
     private Connection connection;
     private PreparedStatement preparedStatement;
 
-    public GtfsStopTimesSelector(String host,
+    private Queue<GtfsArrival> arrivalQueue;
+
+    public GtfsStopTimesSelector(Queue<GtfsArrival> queue,
+                                 String host,
                                  int port,
                                  String dbname,
                                  String user,
@@ -28,12 +34,15 @@ public class GtfsStopTimesSelector {
                 user,
                 password);
 
+        this.arrivalQueue = queue;
+
         this.preparedStatement =  this.connection.prepareStatement(
                 "SELECT monday, tuesday, wednesday, thursday, friday, saturday, sunday, stop_name, arrival_time, stop_lat, stop_lon, start_date, end_date " +
                         "FROM calendar JOIN trips ON (calendar.run_id, calendar.service_id) = (trips.run_id, trips.service_id) " +
                         "   JOIN stop_times ON (trips.run_id, trips.trip_id) = (stop_times.run_id, stop_times.trip_id) " +
                         "   JOIN stops ON (stop_times.run_id, stop_times.stop_id) = (stops.run_id, stops.stop_id) " +
-                        "WHERE end_date >= ? AND start_date < ?;");
+                        "WHERE end_date >= ? AND start_date < ? " +
+                        "ORDER BY arrival_time;");
     }
 
     private static int extractDateInt(LocalDateTime d) {
@@ -42,8 +51,8 @@ public class GtfsStopTimesSelector {
 
     private static LocalDateTime createLocalDateTime(int date, Time time) {
         int year = date / 10000;
-        int month = date / 100 - year;
-        int day = date - year - month;
+        int month = (date - year * 10000) / 100;
+        int day = date - year * 10000 - month * 100;
 
         LocalTime localTime = time.toLocalTime();
 
@@ -64,21 +73,21 @@ public class GtfsStopTimesSelector {
         return weekDays;
     }
 
-    public Collection<GtfsArrival> getGtfsArrivals(LocalDateTime start, Duration duration) throws SQLException {
+    public void getGtfsArrivals(LocalDateTime start, Duration duration) throws SQLException {
         int startInt = extractDateInt(start);
         int endInt = extractDateInt(start.plus(duration));
 
         this.preparedStatement.clearParameters();
-        for (int i = 1; i < 6; i+=2) {
-            this.preparedStatement.setInt(i, startInt);
-            this.preparedStatement.setInt(i + 1, endInt);
-        }
+        this.preparedStatement.setInt(1, startInt);
+        this.preparedStatement.setInt(2, endInt);
+
+        logger.debug("Initialized SQL parameters: 1={}, 2={}", startInt, endInt);
 
         Set<Integer>[] weekDays = detectWeekDays(start, startInt, endInt);
 
-        Collection<GtfsArrival> arrivals = Lists.newArrayList();
         ResultSet result = this.preparedStatement.executeQuery();
-        while (!result.isAfterLast()) {
+        logger.debug("SQL query processed");
+        while (result.next()) {
             GtfsStation station = new GtfsStation(
                     result.getString("stop_name"),
                     result.getDouble("stop_lat"),
@@ -97,14 +106,14 @@ public class GtfsStopTimesSelector {
                 for (Integer dayInt : weekDays[i]) {
                     if (dayInt >= recordStartInt || dayInt < recordEndInt) {
                         // only add the arrival if it is within the validity timeframe of this record
-                        arrivals.add(station.createArrival(createLocalDateTime(dayInt, result.getTime("arrival_time"))));
+                        GtfsArrival arrival = station.createArrival(createLocalDateTime(dayInt, result.getTime("arrival_time")));
+                        this.arrivalQueue.add(arrival);
                     }
                 }
             }
-            result.next();
         }
 
-        return arrivals;
+        logger.debug("SQL processing done.");
     }
 
 

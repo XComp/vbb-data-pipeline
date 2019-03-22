@@ -42,24 +42,25 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
 
         @Override
         public void run() {
+            logger.debug("Initiated database query.");
             LocalDateTime sTime = this.startTime;
 
             // update startTime for next run
             this.startTime = sTime.plus(this.duration);
             try {
-                GtfsStopTimesProducer.this.arrivalQueue.addAll(this.selector.getGtfsArrivals(sTime, this.duration));
+                this.selector.getGtfsArrivals(sTime, this.duration);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private Queue<GtfsArrival> arrivalQueue = Queues.newConcurrentLinkedQueue();
+    private Queue<GtfsArrival> arrivalQueue = Queues.newPriorityBlockingQueue();
 
     private ScheduledExecutorService threadPool = Executors.newSingleThreadScheduledExecutor();
 
     private KafkaProducer<Long, String> producer;
-    private long timeDiff;
+    private long timeDiff = -1;
 
     @CommandLine.Option(names={"-t", "--topic"}, required = true)
     private String topic;
@@ -86,12 +87,12 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
     private LocalDateTime startTime;
 
     public void init() throws SQLException {
-        GtfsStopTimesSelector selector = new GtfsStopTimesSelector(
+        GtfsStopTimesSelector selector = new GtfsStopTimesSelector(this.arrivalQueue,
                 this.databaseHost, this.databasePort, this.databaseName, this.databaseUser, this.databasePassword);
 
         this.startTime = LocalDateTime.parse(this.startTimeStr, DateTimeFormatter.ISO_DATE_TIME);
 
-        this.threadPool.schedule(new GtfsStopTimesSelection(selector, this.startTime, this.pollIntervalInDays), this.pollIntervalInDays, TimeUnit.DAYS);
+        this.threadPool.scheduleAtFixedRate(new GtfsStopTimesSelection(selector, this.startTime, this.pollIntervalInDays), 0, this.pollIntervalInDays, TimeUnit.DAYS);
 
         Properties props = new Properties();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaServersString);
@@ -100,7 +101,6 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
 
         this.producer = new KafkaProducer<>(props);
-        this.timeDiff = this.startTime.until(LocalDateTime.now(), ChronoUnit.MILLIS);
     }
 
     public Void call() throws ExecutionException, InterruptedException, JsonProcessingException, SQLException {
@@ -115,13 +115,25 @@ public class GtfsStopTimesProducer implements Callable<Void>, AutoCloseable {
                 if (arrival == null) {
                     logger.info("Wait for {} millisecond.", pollSleepTime);
                     Thread.sleep(pollSleepTime);
-                    pollSleepTime *= 2;
+                    pollSleepTime = pollSleepTime > 60000 ? 1000 : pollSleepTime * 2;
                     continue;
                 } else {
                     pollSleepTime = 1000;
                 }
 
-                long waitTime = Math.max(0, arrival.getLocalTime().until(LocalDateTime.now(), ChronoUnit.MILLIS) - this.timeDiff);
+                LocalDateTime now = LocalDateTime.now();
+
+                if (this.timeDiff < 0) {
+                    this.timeDiff = arrival.getLocalTime().until(now, ChronoUnit.MILLIS);
+                }
+
+                long waitTime = Math.max(0, arrival.getLocalTime().until(now, ChronoUnit.MILLIS) - this.timeDiff);
+
+                logger.debug("Arrival processed. {}ms waiting time (current time: {}, arrival time: {}, set difference: {}ms)",
+                        waitTime,
+                        now.toString(),
+                        arrival.getLocalTime().toString(),
+                        this.timeDiff);
 
                 Thread.sleep(waitTime);
 
