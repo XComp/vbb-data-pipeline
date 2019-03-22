@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class GtfsArrival {
+public class GtfsArrival implements Comparable<GtfsArrival> {
 
     private final LocalDateTime localTime;
 
@@ -27,23 +27,28 @@ public class GtfsArrival {
         return this.localTime;
     }
 
-    @JsonProperty
+    @JsonProperty("local-time")
     public String getLocalTimeStr() {
-        return this.localTime.format(DateTimeFormatter.RFC_1123_DATE_TIME);
+        return this.localTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSS"));
     }
 
-    @JsonProperty
+    @JsonProperty("name")
     public String getStopName() {
         return this.stopName;
     }
 
-    @JsonProperty
+    @JsonProperty("latitude")
     public double getLatitude() {
         return this.lat;
     }
 
-    @JsonProperty
+    @JsonProperty("longitude")
     public double getLongitude() {
         return this.lon;
+    }
+
+    @Override
+    public int compareTo(GtfsArrival o) {
+        return this.getLocalTime().compareTo(o.getLocalTime());
     }
 }
