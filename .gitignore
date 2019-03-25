@@ -4,12 +4,11 @@ airflow-*.pid
 logs
 
 # GTFS pipeline
-airflow/pipeline-data/*
-!airflow/pipeline-data/README.md
+pipeline-data/*
+!pipeline-data/README.md
 
 # database-related data
-airflow/database-data/*
-!airflow/database-data/README.md
+database-data/*
 
 # other resources
 .idea
