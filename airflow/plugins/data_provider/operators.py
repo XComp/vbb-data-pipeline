@@ -169,11 +169,11 @@ class ChecksumOperator(SkipMixin, DataProviderOperator):
                 return
 
         # consistency check: does the temporary file actually ends .zip~
-        assert old_archive_path.endswith(".zip~"), "The temporary filename is not having the expected suffix: {}"\
+        assert archive_path.endswith(".zip~"), "The temporary filename is not having the expected suffix: {}"\
             .format(old_archive)
 
         # remove the ~ from the end of the file
-        new_archive_path = old_archive_path[0:-1]
+        new_archive_path = archive_path[0:-1]
         copyfile(archive_path, new_archive_path)
         remove(archive_path)
 
