@@ -11,21 +11,18 @@ import java.time.LocalTime;
 import java.util.Queue;
 import java.util.Set;
 
-public class GtfsStopTimesSelector {
+public class GtfsDAO implements AutoCloseable {
 
-    private static Logger logger = LoggerFactory.getLogger(GtfsStopTimesSelector.class);
+    private static Logger logger = LoggerFactory.getLogger(GtfsDAO.class);
 
     private Connection connection;
     private PreparedStatement preparedStatement;
 
-    private Queue<GtfsArrival> arrivalQueue;
-
-    public GtfsStopTimesSelector(Queue<GtfsArrival> queue,
-                                 String host,
-                                 int port,
-                                 String dbname,
-                                 String user,
-                                 String password) throws SQLException {
+    public GtfsDAO(String host,
+                   int port,
+                   String dbname,
+                   String user,
+                   String password) throws SQLException {
         this.connection = DriverManager.getConnection(
                 String.format("jdbc:postgresql://%s:%d/%s",
                         host,
@@ -34,10 +31,14 @@ public class GtfsStopTimesSelector {
                 user,
                 password);
 
-        this.arrivalQueue = queue;
-
         this.preparedStatement =  this.connection.prepareStatement(
-                "SELECT monday, tuesday, wednesday, thursday, friday, saturday, sunday, stop_name, arrival_time, stop_lat, stop_lon, start_date, end_date " +
+                "SELECT monday, tuesday, wednesday, thursday, friday, saturday, sunday, " +
+                        "stop_name, " +
+                        "arrival_time, " +
+                        "stop_lat, " +
+                        "stop_lon, " +
+                        "start_date, " +
+                        "end_date " +
                         "FROM calendar JOIN trips ON (calendar.run_id, calendar.service_id) = (trips.run_id, trips.service_id) " +
                         "   JOIN stop_times ON (trips.run_id, trips.trip_id) = (stop_times.run_id, stop_times.trip_id) " +
                         "   JOIN stops ON (stop_times.run_id, stop_times.stop_id) = (stops.run_id, stops.stop_id) " +
@@ -61,9 +62,13 @@ public class GtfsStopTimesSelector {
 
     private Set<Integer>[] detectWeekDays(LocalDateTime start, int startInt, int endInt) {
         Set<Integer>[] weekDays = new Set[7];
+
+        // initialize array collecting the date ints per weekday
         for (int i = 0; i < weekDays.length; i++) {
             weekDays[i] = Sets.newHashSet();
         }
+
+        // initialize the for loop by detecting what kind of weekday the start date is
         int startWeekDay = start.getDayOfWeek().getValue() - 1;
         for (int day = startInt, weekDay = startWeekDay; day < endInt; day++, weekDay++) {
             weekDay %= weekDays.length;
@@ -73,7 +78,7 @@ public class GtfsStopTimesSelector {
         return weekDays;
     }
 
-    public void getGtfsArrivals(LocalDateTime start, Duration duration) throws SQLException {
+    public void getGtfsArrivals(Queue<GtfsArrival> arrivalQueue, LocalDateTime start, Duration duration) throws SQLException {
         int startInt = extractDateInt(start);
         int endInt = extractDateInt(start.plus(duration));
 
@@ -83,6 +88,7 @@ public class GtfsStopTimesSelector {
 
         logger.debug("Initialized SQL parameters: 1={}, 2={}", startInt, endInt);
 
+        // collect weekdays within the given time frame
         Set<Integer>[] weekDays = detectWeekDays(start, startInt, endInt);
 
         ResultSet result = this.preparedStatement.executeQuery();
@@ -107,14 +113,17 @@ public class GtfsStopTimesSelector {
                     if (dayInt >= recordStartInt || dayInt < recordEndInt) {
                         // only add the arrival if it is within the validity timeframe of this record
                         GtfsArrival arrival = station.createArrival(createLocalDateTime(dayInt, result.getTime("arrival_time")));
-                        this.arrivalQueue.add(arrival);
+                        arrivalQueue.add(arrival);
                     }
                 }
             }
         }
-
-        logger.debug("SQL processing done.");
     }
 
 
+    @Override
+    public void close() throws SQLException {
+        this.preparedStatement.close();
+        this.connection.close();
+    }
 }
