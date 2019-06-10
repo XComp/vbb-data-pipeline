@@ -2,25 +2,30 @@ package com.mapohl.gtfsdatapipeline;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.Getter;
+import lombok.NonNull;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+@AllArgsConstructor
+@Data
+@C
 public class GtfsArrival implements Comparable<GtfsArrival> {
 
+    @NonNull
     private final LocalDateTime localTime;
 
+    @NonNull
+    @JsonProperty("name")
     private final String stopName;
 
+    @JsonProperty("latitude")
     private final double lat;
+    @JsonProperty("longitude")
     private final double lon;
-
-    public GtfsArrival(LocalDateTime localTime, String stopName, double lat, double lon) {
-        this.localTime = localTime;
-        this.stopName = stopName;
-        this.lat = lat;
-        this.lon = lon;
-    }
 
     @JsonIgnore
     public LocalDateTime getLocalTime() {
@@ -30,21 +35,6 @@ public class GtfsArrival implements Comparable<GtfsArrival> {
     @JsonProperty("local-time")
     public String getLocalTimeStr() {
         return this.localTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSS"));
-    }
-
-    @JsonProperty("name")
-    public String getStopName() {
-        return this.stopName;
-    }
-
-    @JsonProperty("latitude")
-    public double getLatitude() {
-        return this.lat;
-    }
-
-    @JsonProperty("longitude")
-    public double getLongitude() {
-        return this.lon;
     }
 
     @Override
