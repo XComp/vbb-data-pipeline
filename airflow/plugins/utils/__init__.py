@@ -14,7 +14,7 @@ class ExtendedPostgresHook(PostgresHook):
     def get_row_count(self, table_name):
         return self.get_first("SELECT COUNT(*) FROM {}.{}".format(self.schema, table_name))[0]
 
-    def insert_rows(self, table, rows, target_fields=None, commit_every=1000, sql_ext=""):
+    def insert_rows(self, table, rows, target_fields=None, commit_every=100000, sql_ext=""):
         if target_fields:
             target_fields = ", ".join(target_fields)
             target_fields = "({})".format(target_fields)
@@ -44,7 +44,7 @@ class ExtendedPostgresHook(PostgresHook):
                     cur.execute(sql, values)
                     if commit_every and i % commit_every == 0:
                         conn.commit()
-                        self.log.info(
+                        self.log.debug(
                             "Loaded %s into %s rows so far", i, table
                         )
 
@@ -52,7 +52,7 @@ class ExtendedPostgresHook(PostgresHook):
 
         self.log.info("Done loading. Loaded a total of %s rows", i)
 
-    def insert_rows_ignore_on_conflict(self, table, rows, target_fields=None, commit_every=1000):
+    def insert_rows_ignore_on_conflict(self, table, rows, target_fields=None, commit_every=100000):
         self.insert_rows(table, rows, target_fields, commit_every, sql_ext=" ON CONFLICT DO NOTHING;")
 
     def insert_row_and_get_id(self, table, target_fields, data, id_field):
