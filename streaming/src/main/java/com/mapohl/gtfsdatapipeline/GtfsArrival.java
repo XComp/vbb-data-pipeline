@@ -12,7 +12,6 @@ import java.time.format.DateTimeFormatter;
 
 @AllArgsConstructor
 @Data
-@C
 public class GtfsArrival implements Comparable<GtfsArrival> {
 
     @NonNull
