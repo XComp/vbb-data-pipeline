@@ -15,7 +15,29 @@ is going to change in a way that other sources should be added as well.
 
 ## Setup
 
-Starting the project is done by running `docker-compose up -d` from the project's base folder. The Airflow webserver can be 
-accessed via [localhost:8080](http://localhost:8080/).
+* Build the Airflow container
+```
+docker build -t mapohl/airflow -f airflow/Dockerfile airflow
+```
+* Start the containers
+```
+docker-compose up -d
+```
+* Stop the containers
+```
+docker-compose down
+```
 
-The project can be stopped calling `docker-compose down` from the project's base folder.
+### Cleaning up to start from scratch
+* Remove docker containers
+```
+docker-compose rm
+```
+* Delete database content
+```
+sudo rm -rf database-data/*
+```
+* Start the containers again
+```
+docker-compose up -d
+```
