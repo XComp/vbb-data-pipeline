@@ -41,3 +41,25 @@ sudo rm -rf database-data/*
 ```
 docker-compose up -d
 ```
+
+## Kafka
+* Build the Java code:
+```
+mvn -f streaming/pom.xml clean install
+```
+* Set `KAFKA_ADVERTISED_HOST_NAME` within the docker-compose.yml to Docker's host IP address. The IP can be determined using the following command:
+```
+ip -4 addr show docker0 | grep -Po 'inet \K[\d.]+'
+```
+* Start the containers:
+```
+docker-compose up -d
+```
+* Run the console consumer
+```
+docker exec -it kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic gtfs-arrivals
+```
+* Run the producer
+```
+mvn -f streaming/pom.xml exec:java -Dexec.mainClass=com.mapohl.gtfsdatapipeline.GtfsArrivalsProducer -Dexec.args="--topic gtfs-arrivals --kafka-server localhost:9092 --kafka-client gtfs-arrivals-client --start 2018-12-10T12:00:00.000 --days 2"
+```
