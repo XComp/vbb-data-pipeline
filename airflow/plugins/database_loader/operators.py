@@ -1,13 +1,14 @@
 from os import listdir
 from os.path import join, isfile
 from zipfile import ZipFile
+from utils import ExtendedPostgresHook
 
 import csv
+import datetime
 import io
 import re
 
 from airflow.models import BaseOperator
-from airflow.operators.postgres_operator import PostgresHook
 from airflow.utils.decorators import apply_defaults
 
 
@@ -18,9 +19,13 @@ class PostgresMixin:
 
         self.postgres_conn_id = postgres_conn_id
         self.schema = schema
+        self.hook = ExtendedPostgresHook(postgres_conn_id=self.postgres_conn_id, schema="gtfs")
 
     def get_hook(self):
-        return PostgresHook(postgres_conn_id=self.postgres_conn_id)
+        return self.hook
+
+    def get_row_count(self, table_name):
+        return self.get_hook().get_first("SELECT COUNT(*) FROM {}".format(table_name))[0]
 
 
 class DataSelectOperator(BaseOperator):
@@ -106,83 +111,61 @@ class LoadNewDataOperator(PostgresMixin, BaseOperator):
 
                 self.load(zip_archive_path=zip_archive_path, provider_id=provider_id, run_date=run_date)
 
-    @staticmethod
-    def get_row_count(cursor, table_name):
-        cursor.execute("SELECT COUNT(*) FROM {}".format(table_name))
-        return cursor.fetchone()[0]
-
     def load(self, zip_archive_path, provider_id, run_date):
-        with self.get_hook().get_conn() as conn:
-            with conn, conn.cursor() as cursor:
-                # insert provider if it does not exist, yet
-                provider_query = """INSERT INTO gtfs.provider (provider_id, created) 
-                                    VALUES ('{}', NOW()) ON CONFLICT DO NOTHING;""".format(provider_id)
-                cursor.execute(provider_query)
+        # insert provider if it does not exist, yet
+        self.get_hook().insert_rows_ignore_on_conflict(
+            table="provider",
+            target_fields=["provider_id", "created"],
+            rows=[[provider_id, datetime.datetime.now()]]
+        )
 
-                # insert run record returning the new ID
-                run_query = """INSERT INTO gtfs.run (run_date, provider_id) 
-                               VALUES ('{}', '{}') RETURNING run_id;""".format(run_date, provider_id)
-                cursor.execute(run_query)
-                run_id = cursor.fetchone()[0]
+        # insert run record returning the new ID
+        run_id = self.get_hook().insert_row_and_get_id(
+            table="run",
+            target_fields=["run_date", "provider_id"],
+            data=[run_date, provider_id],
+            id_field="run_id")
+        self.log.info("Run was generated: " + str(run_id))
 
-                # retrieving the available tables
-                cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'gtfs';")
-                available_tables = [row[0] for row in cursor.fetchall()]
+        # retrieving the available tables
+        available_tables_query = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'gtfs';"
+        available_tables = [row[0] for row in self.get_hook().get_records(available_tables_query)]
 
-                # extract data from zip archive
-                # we need to apply some ordering to ensure that the foreign key constraint never fails
-                zip_member_order = {"agency.txt": 0, "calendar.txt": 0, "shapes.txt": 0, "stops.txt": 0,
-                                    "calendar_dates.txt": 1, "routes.txt": 1,
-                                    "trips.txt": 2,
-                                    "frequencies.txt": 3, "stop_times.txt": 3, "transfers.txt": 3}
-                with ZipFile(zip_archive_path, "r") as zip_archive:
-                    for zip_member in sorted(zip_archive.namelist(), key=lambda k: zip_member_order.get(k, 9999)):
-                        table_name = zip_member.split(".")[0]
+        # extract data from zip archive
+        # we need to apply some ordering to ensure that the foreign key constraint never fails
+        zip_member_order = {"agency.txt": 0, "calendar.txt": 0, "shapes.txt": 0, "stops.txt": 0,
+                            "calendar_dates.txt": 1, "routes.txt": 1,
+                            "trips.txt": 2,
+                            "frequencies.txt": 3, "stop_times.txt": 3, "transfers.txt": 3}
+        with ZipFile(zip_archive_path, "r") as zip_archive:
+            for zip_member in sorted(zip_archive.namelist(), key=lambda k: zip_member_order.get(k, 9999)):
+                table_name = zip_member.split(".")[0]
 
-                        # don't load data if the table does not exist
-                        if table_name not in available_tables:
-                            self.log.warn("Table '{}' is not initialized in the database.".format(table_name))
-                            continue
+                # don't load data if the table does not exist
+                if table_name not in available_tables:
+                    self.log.warn("Table '{}' is not initialized in the database.".format(table_name))
+                    continue
 
-                        old_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
+                old_row_count = self.get_hook().get_row_count(table_name=table_name)
 
-                        # process CSV file
-                        with zip_archive.open(zip_member, "r") as csv_file:
+                # process CSV file
+                self.log.info("Starting to process {}/{}/{}".format(provider_id, run_date, zip_member))
+                with zip_archive.open(zip_member, "r") as csv_file:
 
-                            def insert_data(cols, d_cache):
-                                if not d_cache:
-                                    return
+                    csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
+                    columns = ["run_id", "provider_id"]
+                    rows = []
+                    for row in csv_reader:
+                        if len(columns) < 3:
+                            # we have to clean the fields from special characters - KVV has strange characters
+                            # in the header
+                            columns.extend([re.sub(r'[^a-z,_]', "", field.strip()) for field in row])
 
-                                insert_query = """INSERT INTO gtfs.{} ({}) VALUES {} 
-                                                  ON CONFLICT DO NOTHING""".format(
-                                    table_name,
-                                    ",".join(cols),
-                                    ",".join(d_cache)
-                                )
-                                cursor.execute(insert_query)
+                        final_row = [run_id, provider_id] + [value if value else None for _, value in row.items()]
+                        rows.append(final_row)
 
-                            csv_reader = csv.DictReader(io.TextIOWrapper(csv_file))
-                            columns = ["run_id", "provider_id"]
-                            data_cache = []
-                            for i, row in enumerate(csv_reader):
-                                if len(columns) < 3:
-                                    # we have to clean the fields from special characters - KVV has strange characters
-                                    # in the header
-                                    columns.extend([re.sub(r'[^a-z,_]', "", field.strip()) for field in row])
-                                data_cache.append("({}, '{}', {})".format(
-                                    run_id,
-                                    provider_id,
-                                    ",".join(["'{}'".format(value) if value else "NULL" for _, value in row.items()])
-                                ))
+                    self.get_hook().insert_rows_ignore_on_conflict(table=table_name, target_fields=columns, rows=rows)
+                new_row_count = self.get_hook().get_row_count(table_name=table_name)
 
-                                if i % 50000 == 0:
-                                    insert_data(cols=columns, d_cache=data_cache)
-                                    self.log.debug("50000 rows inserted into {}.".format(table_name))
-                                    data_cache = []
-
-                            insert_data(cols=columns, d_cache=data_cache)
-
-                        new_row_count = LoadNewDataOperator.get_row_count(cursor=cursor, table_name=table_name)
-
-                        self.log.info("Finished processing {}/{}/{}: {} rows added"
-                                      .format(provider_id, run_date, zip_member, new_row_count - old_row_count))
+                self.log.info("Finished processing {}/{}/{}: {} rows added"
+                              .format(provider_id, run_date, zip_member, new_row_count - old_row_count))
