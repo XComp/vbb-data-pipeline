@@ -77,7 +77,6 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
     private KafkaProducer<Long, String> producer;
 
     private LocalDateTime startTime;
-    private long timeDiff = -1;
 
     // ***********************************
     // command line parameters
@@ -137,6 +136,9 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
         this.init();
 
         int pollSleepTime = 1000;
+        LocalDateTime currentProcessedArrivalTime = null;
+        LocalDateTime currentTime = null;
+        long waitTime = 0L;
         try {
             ObjectMapper objMapper = new ObjectMapper();
             while (true) {
@@ -153,20 +155,29 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
                     pollSleepTime = 1000;
                 }
 
-                // determine the difference in time between the first arrival and the current time
-                LocalDateTime now = LocalDateTime.now();
-                if (this.timeDiff < 0) {
-                    this.timeDiff = arrival.getLocalTime().until(now, ChronoUnit.MILLIS);
+                if (currentProcessedArrivalTime == null) {
+                    waitTime = 0L;
+                    currentProcessedArrivalTime = arrival.getLocalTime();
+                    currentTime = LocalDateTime.now();
+                    logger.debug("New arrival time detected ({}). Wait time: {}ms", arrival.getLocalTime(), waitTime);
+                } else if (currentProcessedArrivalTime.equals(arrival.getLocalTime())) {
+                    // nothing to wait for
+                    waitTime = 0L;
+                } else {
+                    LocalDateTime newCurrentTime = LocalDateTime.now();
+                    long arrivalTimeDiff = currentProcessedArrivalTime.until(arrival.getLocalTime(), ChronoUnit.MILLIS);
+                    long currentTimeDiff = currentTime.until(newCurrentTime, ChronoUnit.MILLIS);
+                    waitTime = Math.max(0, arrivalTimeDiff - currentTimeDiff);
+
+                    logger.debug("New arrival time detected ({}). The old currentTime={} and the new currentTime={} result in a wait of {}ms.",
+                            arrival.getLocalTime(),
+                            currentTime,
+                            newCurrentTime,
+                            waitTime);
+
+                    currentProcessedArrivalTime = arrival.getLocalTime();
+                    currentTime = newCurrentTime;
                 }
-
-                // wait to simulate the time difference between the last arrival and the current one
-                long waitTime = Math.max(0, arrival.getLocalTime().until(now, ChronoUnit.MILLIS) - this.timeDiff);
-
-                logger.debug("Arrival processed. {}ms waiting time (current time: {}, arrival time: {}, set difference: {}ms)",
-                        waitTime,
-                        now.toString(),
-                        arrival.getLocalTime().toString(),
-                        this.timeDiff);
 
                 Thread.sleep(waitTime);
 
