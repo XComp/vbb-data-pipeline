@@ -5,14 +5,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Queues;
 import com.mapohl.gtfsdatapipeline.data.GtfsDAO;
 import com.mapohl.gtfsdatapipeline.domain.GtfsArrival;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 
 import java.sql.SQLException;
@@ -24,9 +23,8 @@ import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.*;
 
+@Slf4j
 public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
-
-    private static Logger logger = LoggerFactory.getLogger(GtfsArrivalsProducer.class);
 
     private class GtfsArrivalSelector implements Runnable {
 
@@ -64,7 +62,7 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
             } catch (SQLException e) {
                 e.printStackTrace();
             } finally {
-                logger.info("All components have been shutdown.");
+                log.info("All components have been shutdown.");
             }
         }
     }
@@ -148,7 +146,7 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
 
                 if (arrival == null) {
                     // wait if no arrival can be processed
-                    logger.info("Wait for {} millisecond.", pollSleepTime);
+                    log.info("Wait for {} millisecond.", pollSleepTime);
                     Thread.sleep(pollSleepTime);
                     pollSleepTime = pollSleepTime > 60000 ? 1000 : pollSleepTime * 2;
                     continue;
@@ -161,7 +159,7 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
                     waitTime = 0L;
                     currentProcessedArrivalTime = arrival.getLocalTime();
                     currentTime = LocalDateTime.now();
-                    logger.debug("New arrival time detected ({}). Wait time: {}ms", arrival.getLocalTime(), waitTime);
+                    log.debug("New arrival time detected ({}). Wait time: {}ms", arrival.getLocalTime(), waitTime);
                 } else if (currentProcessedArrivalTime.equals(arrival.getLocalTime())) {
                     // nothing to wait for
                     waitTime = 0L;
@@ -171,7 +169,7 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
                     long currentTimeDiff = currentTime.until(newCurrentTime, ChronoUnit.MILLIS);
                     waitTime = Math.max(0, arrivalTimeDiff - currentTimeDiff);
 
-                    logger.debug("New arrival time detected ({}). The old currentTime={} and the new currentTime={} result in a wait of {}ms.",
+                    log.debug("New arrival time detected ({}). The old currentTime={} and the new currentTime={} result in a wait of {}ms.",
                             arrival.getLocalTime(),
                             currentTime,
                             newCurrentTime,
@@ -187,7 +185,7 @@ public class GtfsArrivalsProducer implements Callable<Void>, AutoCloseable {
                 final ProducerRecord<Long, String> record = new ProducerRecord<>(this.topic, System.currentTimeMillis(), objMapper.writeValueAsString(arrival));
 
                 RecordMetadata metadata = this.producer.send(record).get();
-                logger.info("Sent record(key={} stop-name={}) meta(partition={}, offset={})",
+                log.info("Sent record(key={} stop-name={}) meta(partition={}, offset={})",
                         record.key(), arrival.getStopName(), metadata.partition(),
                         metadata.offset());
             }
