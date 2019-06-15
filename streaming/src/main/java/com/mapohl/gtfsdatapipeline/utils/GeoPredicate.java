@@ -1,14 +1,20 @@
 package com.mapohl.gtfsdatapipeline.utils;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mapohl.gtfsdatapipeline.domain.GtfsArrival;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.streams.kstream.Predicate;
 
-import java.util.function.Predicate;
+import java.io.IOException;
 
 @AllArgsConstructor
 @Data
-public class GeoPredicate implements Predicate<GtfsArrival> {
+@Slf4j
+public class GeoPredicate implements Predicate<Long, String> {
+
+    private static final ObjectMapper objMapper = new ObjectMapper();
 
     private final double centerLat;
     private final double centerLon;
@@ -32,7 +38,15 @@ public class GeoPredicate implements Predicate<GtfsArrival> {
     }
 
     @Override
-    public boolean test(GtfsArrival gtfsArrival) {
+    public boolean test(Long key, String value) {
+        GtfsArrival gtfsArrival = null;
+        try {
+            gtfsArrival = objMapper.readValue(value, GtfsArrival.class);
+        } catch (IOException e) {
+            log.error("An error occurred while parsing the JSON: " + value, e);
+            return false;
+        }
+
         return radiusInMetres >= distToCenter(gtfsArrival.getLat(), gtfsArrival.getLon());
     }
 }
