@@ -1,6 +1,7 @@
-package com.mapohl.gtfsdatapipeline;
+package com.mapohl.gtfsdatapipeline.domain;
 
 
+import com.mapohl.gtfsdatapipeline.domain.GtfsArrival;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NonNull;

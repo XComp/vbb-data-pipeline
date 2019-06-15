@@ -1,8 +1,10 @@
-package com.mapohl.gtfsdatapipeline;
+package com.mapohl.gtfsdatapipeline.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Queues;
+import com.mapohl.gtfsdatapipeline.data.GtfsDAO;
+import com.mapohl.gtfsdatapipeline.domain.GtfsArrival;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;

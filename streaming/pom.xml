@@ -101,7 +101,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>com.mapohl.gtfsdatapipeline.GtfsArrivalsProducer</mainClass>
+                    <mainClass>com.mapohl.gtfsdatapipeline.kafka.GtfsArrivalsProducer</mainClass>
                 </configuration>
             </plugin>
 

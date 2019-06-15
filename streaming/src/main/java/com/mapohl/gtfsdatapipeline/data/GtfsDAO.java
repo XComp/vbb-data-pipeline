@@ -1,6 +1,8 @@
-package com.mapohl.gtfsdatapipeline;
+package com.mapohl.gtfsdatapipeline.data;
 
 import com.google.common.collect.Sets;
+import com.mapohl.gtfsdatapipeline.domain.GtfsArrival;
+import com.mapohl.gtfsdatapipeline.domain.GtfsStation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
