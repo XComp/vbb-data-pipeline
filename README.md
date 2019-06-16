@@ -63,3 +63,9 @@ docker exec -it kafka kafka-console-consumer.sh --bootstrap-server localhost:909
 ```
 mvn -f streaming/pom.xml exec:java -Dexec.mainClass=com.mapohl.gtfsdatapipeline.GtfsArrivalsProducer -Dexec.args="--topic gtfs-arrivals --kafka-server localhost:9092 --kafka-client gtfs-arrivals-client --start 2018-12-10T12:00:00.000 --days 2"
 ```
+
+### Monitoring
+* List created topics
+```
+docker exec -it kafka kafka-topics.sh --list --bootstrap-server localhost:9092
+```
