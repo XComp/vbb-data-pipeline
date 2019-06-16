@@ -61,7 +61,11 @@ docker exec -it kafka kafka-console-consumer.sh --bootstrap-server localhost:909
 ```
 * Run the producer
 ```
-mvn -f streaming/pom.xml exec:java -Dexec.mainClass=com.mapohl.gtfsdatapipeline.GtfsArrivalsProducer -Dexec.args="--topic gtfs-arrivals --kafka-server localhost:9092 --kafka-client gtfs-arrivals-client --start 2018-12-10T12:00:00.000 --days 2"
+mvn exec:java@producer -Dexec.args="--topic gtfs-arrivals --kafka-server localhost:9092 --kafka-client gtfs-arrivals-client --start 2018-12-10T12:00:00.000 --days 2"
+```
+* Run basic console consumer
+```
+docker exec -it kafka kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic gtfs-arrivals
 ```
 
 ### Monitoring

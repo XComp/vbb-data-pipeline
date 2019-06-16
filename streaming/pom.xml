@@ -132,14 +132,15 @@
                 <version>1.4.0</version>
                 <executions>
                     <execution>
+                        <id>producer</id>
                         <goals>
                             <goal>java</goal>
                         </goals>
+                        <configuration>
+                            <mainClass>com.mapohl.gtfsdatapipeline.kafka.GtfsArrivalsProducer</mainClass>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <mainClass>com.mapohl.gtfsdatapipeline.kafka.GtfsArrivalsProducer</mainClass>
-                </configuration>
             </plugin>
 
         </plugins>
